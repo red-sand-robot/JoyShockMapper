@@ -1,18 +1,18 @@
 
-#include <chrono>
+#include "main.h"
+#include "Whitelister.h"
+#include "inputHelpers.cpp"
+#include "DigitalButton.h"
+
 #include <sstream>
 #include <algorithm>
 #include <string.h>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
-#include <deque>
 #include <memory>
 #include <mutex>
 
-#include "JoyShockLibrary.h"
-#include "Whitelister.h"
-#include "inputHelpers.cpp"
 
 #pragma warning(disable:4996)
 
@@ -24,112 +24,12 @@ const char* version = "1.4.0";
 
 #define PI 3.14159265359f
 
-#define MAPPING_ERROR -2 // Represents an error in user input
-#define MAPPING_NONE -1 // Represents no button when explicitely stated by the user. Not to be confused with NO_HOLD_MAPPED which is no action bound.
-#define MAPPING_UP 0
-#define MAPPING_DOWN 1
-#define MAPPING_LEFT 2
-#define MAPPING_RIGHT 3
-#define MAPPING_L 4
-#define MAPPING_ZL 5
-#define MAPPING_MINUS 6
-#define MAPPING_CAPTURE 7
-#define MAPPING_E 8
-#define MAPPING_S 9
-#define MAPPING_N 10
-#define MAPPING_W 11
-#define MAPPING_R 12
-#define MAPPING_ZR 13
-#define MAPPING_PLUS 14
-#define MAPPING_HOME 15
-#define MAPPING_SL 16
-#define MAPPING_SR 17
-#define MAPPING_L3 18
-#define MAPPING_R3 19
-#define MAPPING_LUP 20
-#define MAPPING_LDOWN 21
-#define MAPPING_LLEFT 22
-#define MAPPING_LRIGHT 23
-#define MAPPING_RUP 24
-#define MAPPING_RDOWN 25
-#define MAPPING_RLEFT 26
-#define MAPPING_RRIGHT 27
-#define MAPPING_ZLF 28 // FIRST
-// insert more analog triggers here
-#define MAPPING_ZRF 29 // LAST
-#define MAPPING_SIZE 30
-
-#define FIRST_ANALOG_TRIGGER MAPPING_ZLF
-#define LAST_ANALOG_TRIGGER MAPPING_ZRF
-
-#define MIN_GYRO_SENS 31
-#define MAX_GYRO_SENS 32
-#define MIN_GYRO_THRESHOLD 33
-#define MAX_GYRO_THRESHOLD 34
-#define STICK_POWER 35
-#define STICK_SENS 36
-#define REAL_WORLD_CALIBRATION 37
-#define IN_GAME_SENS 38
-#define TRIGGER_THRESHOLD 39
-#define RESET_MAPPINGS 40
-#define NO_GYRO_BUTTON 41
-#define LEFT_STICK_MODE 42
-#define RIGHT_STICK_MODE 43
-#define GYRO_OFF 44
-#define GYRO_ON 45
-#define STICK_AXIS_X 46
-#define STICK_AXIS_Y 47
-#define GYRO_AXIS_X 48
-#define GYRO_AXIS_Y 49
-#define RECONNECT_CONTROLLERS 50
-#define COUNTER_OS_MOUSE_SPEED 51
-#define IGNORE_OS_MOUSE_SPEED 52
-#define JOYCON_GYRO_MASK 53
-#define GYRO_SENS 54
-#define FLICK_TIME 55
-#define GYRO_SMOOTH_THRESHOLD 56
-#define GYRO_SMOOTH_TIME 57
-#define GYRO_CUTOFF_SPEED 58
-#define GYRO_CUTOFF_RECOVERY 59
-#define STICK_ACCELERATION_RATE 60
-#define STICK_ACCELERATION_CAP 61
-#define STICK_DEADZONE_INNER 62
-#define STICK_DEADZONE_OUTER 63
-#define CALCULATE_REAL_WORLD_CALIBRATION 64
-#define FINISH_GYRO_CALIBRATION 65
-#define RESTART_GYRO_CALIBRATION 66
-#define MOUSE_X_FROM_GYRO_AXIS 67
-#define MOUSE_Y_FROM_GYRO_AXIS 68
-#define ZR_DUAL_STAGE_MODE 69
-#define ZL_DUAL_STAGE_MODE 70
-#define AUTOLOAD 71
-#define HELP 72
-#define WHITELISTER 73
-
-#define MAGIC_DST_DELAY 150.0f // in milliseconds
-// Tap duration only applies to GYRO_OFF tap and coded a horrible exception. 
-#define MAGIC_TAP_DURATION 500.0f // in milliseconds
-#define MAGIC_HOLD_TIME 150.0f // in milliseconds
-#define MAGIC_SIM_DELAY 50.0f // in milliseconds
-static_assert(MAGIC_SIM_DELAY < MAGIC_HOLD_TIME, "Simultaneous press delay has to be smaller than hold delay!");
-
 enum class StickMode { none, aim, flick, invalid };
 enum       AxisMode { standard=1, inverted=-1, invalid=0 }; // valid values are true!
 enum class TriggerMode { noFull, noSkip, maySkip, mustSkip, maySkipResp, mustSkipResp, invalid };
 enum class GyroAxisMask { none = 0, x = 1, y = 2, z = 4, invalid = 8 };
 enum class JoyconMask { useBoth = 0, ignoreLeft = 1, ignoreRight = 2, ignoreBoth = 3, invalid = 4 };
 enum class GyroIgnoreMode { button, left, right };
-enum class DstState { NoPress = 0, PressStart, QuickSoftTap, QuickFullPress, QuickFullRelease, SoftPress, DelayFullPress, PressStartResp, invalid };
-enum class BtnState { NoPress = 0, BtnPress, WaitSim, WaitHold, SimPress, HoldPress, WaitSimHold, SimHold, SimRelease, SimTapRelease, TapRelease, invalid};
-
-// Mapping for a press combination, whether chorded or simultaneous
-struct ComboMap
-{
-	std::string name;
-	int btn;
-	WORD pressBind = 0;
-	WORD holdBind = 0;
-};
 
 std::mutex loading_lock;
 
@@ -175,22 +75,7 @@ std::unique_ptr<PollingThread> autoLoadThread;
 
 char tempConfigName[128];
 
-typedef struct GyroSample {
-	float x;
-	float y;
-} GyroSample;
-
-class JoyShock {
-private:
-	float _weightsRemaining[16];
-	float _flickSamples[16];
-	int _frontSample = 0;
-
-	GyroSample _gyroSamples[64];
-	int _frontGyroSample = 0;
-
-public:
-	JoyShock(int uniqueHandle, float pollRate, int controllerSplitType, float stickStepSize)
+JoyShock::JoyShock(int uniqueHandle, float pollRate, int controllerSplitType, float stickStepSize)
 		: intHandle(uniqueHandle)
 		, poll_rate(pollRate)
 		, controller_type(controllerSplitType)
@@ -200,32 +85,7 @@ public:
 
 	}
 
-	const int MaxGyroSamples = 64;
-	const int NumSamples = 16;
-	int intHandle;
-
-	std::chrono::steady_clock::time_point press_times[MAPPING_SIZE];
-	BtnState btnState[MAPPING_SIZE];
-	WORD keyToRelease[MAPPING_SIZE]; // At key press, remember what to release
-	std::deque<int> chordStack; // Represents the remapping layers active. Each item needs to have an entry in chord_mappings.
-	std::deque<std::pair<int, WORD>> gyroActionQueue; // Queue of gyro control actions currently in effect
-	std::chrono::steady_clock::time_point started_flick;
-	std::chrono::steady_clock::time_point time_now;
-	// tap_release_queue has been replaced with button states *TapRelease. The hold time of the tap is the polling period of the device.
-	float delta_flick = 0.0;
-	float flick_percent_done = 0.0;
-	float flick_rotation_counter = 0.0;
-	bool toggleContinuous = false;
-
-	float poll_rate;
-	int controller_type = 0;
-	float stick_step_size;
-
-	float left_acceleration = 1.0;
-	float right_acceleration = 1.0;
-	std::vector<DstState> triggerState; // State of analog triggers when skip mode is active
-
-	WORD GetPressMapping(int index)
+	WORD JoyShock::GetPressMapping(int index)
 	{
 		// Look at active chord mappings starting with the latest activates chord
 		for (auto activeChord = chordStack.begin(); activeChord != chordStack.end(); activeChord++)
@@ -239,7 +99,7 @@ public:
 		return mappings[index];
 	}
 
-	WORD GetHoldMapping(int index)
+	WORD JoyShock::GetHoldMapping(int index)
 	{
 		// Look at active chord mappings starting with the latest activates chord
 		for (auto activeChord = chordStack.begin(); activeChord != chordStack.end(); activeChord++)
@@ -253,7 +113,7 @@ public:
 		return hold_mappings[index];
 	}
 
-	void ApplyBtnPress(int index, bool tap = false)
+	void JoyShock::ApplyBtnPress(int index, bool tap)
 	{
 		auto key = GetPressMapping(index);
 		if (key == CALIBRATE)
@@ -280,7 +140,7 @@ public:
 		}
 	}
 
-	void ApplyBtnHold(int index)
+	void JoyShock::ApplyBtnHold(int index)
 	{
 		auto key = GetHoldMapping(index);
 		if (key == CALIBRATE)
@@ -304,7 +164,7 @@ public:
 		}
 	}
 
-	void ApplyBtnRelease(int index, bool tap = false)
+	void JoyShock::ApplyBtnRelease(int index, bool tap)
 	{
 		if (keyToRelease[index] == CALIBRATE)
 		{
@@ -335,7 +195,7 @@ public:
 		}
 	}
 
-	void ApplyBtnPress(const ComboMap &simPress, int index, bool tap = false)
+	void JoyShock::ApplyBtnPress(const ComboMap &simPress, int index, bool tap)
 	{
 		if (simPress.pressBind == CALIBRATE)
 		{
@@ -361,7 +221,7 @@ public:
 		// Combo presses don't enable chords
 	}
 
-	void ApplyBtnHold(const ComboMap &simPress, int index)
+	void JoyShock::ApplyBtnHold(const ComboMap &simPress, int index)
 	{
 		if (simPress.holdBind == CALIBRATE)
 		{
@@ -384,7 +244,7 @@ public:
 		// Combo presses don't enable chords
 	}
 
-	void ApplyBtnRelease(const ComboMap &simPress, int index, bool tap = false)
+	void JoyShock::ApplyBtnRelease(const ComboMap &simPress, int index, bool tap)
 	{
 		if (keyToRelease[index] == CALIBRATE)
 		{
@@ -420,49 +280,49 @@ public:
 		}
 	}
 
-	// Pretty wrapper
-	inline float GetPressDurationMS(int index)
-	{
-		return static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(time_now - press_times[index]).count());
-	}
-
 	// Indicate if the button is currently sending an assigned mapping.
-	bool IsActive(int mappingIndex)
+	bool JoyShock::IsActive(int mappingIndex)
 	{
 		if (mappingIndex >= 0 && mappingIndex < MAPPING_SIZE)
 		{
-			auto state = btnState[mappingIndex];
-			return state == BtnState::BtnPress || state == BtnState::HoldPress; // Add Sim Press State? Only with Setting?
+			//auto state = btnState[mappingIndex].GetCurrentState();
+			//return state == DigitalButton::E_BtnPress || state == DigitalButton::E_HoldPress; // Add Sim Press State? Only with Setting?
 		}
 		return false;
 	}
 
-	inline const ComboMap* GetMatchingSimMap(int index)
+	inline bool JoyShock::HasSimMappings(int index)
+	{
+		return sim_mappings.find(index) != sim_mappings.cend() && !sim_mappings[index].empty();
+	}
+
+	const ComboMap* JoyShock::GetMatchingSimMap(int index)
 	{
 		// Find the simMapping where the other btn is in the same state as this btn.
 		// POTENTIAL FLAW: The mapping you find may not necessarily be the one that got you in a 
 		// Simultaneous state in the first place if there is a second SimPress going on where one
 		// of the buttons has a third SimMap with this one. I don't know if it's worth solving though...
-		if (sim_mappings.find(index) != sim_mappings.cend())
+		if (HasSimMappings(index))
 		{
 			auto match = std::find_if(sim_mappings[index].cbegin(), sim_mappings[index].cend(),
 				[this, index](const auto& simMap)
 				{
-					return btnState[simMap.btn] == btnState[index];
+					return false;
+					//return btnState[simMap.btn].GetCurrentState() == btnState[index].GetCurrentState();
 				});
 			return match == sim_mappings[index].cend() ? nullptr : &*match;
 		}
 		return nullptr;
 	}
 
-	void ResetSmoothSample() {
+	void JoyShock::ResetSmoothSample() {
 		_frontSample = 0;
 		for (int i = 0; i < NumSamples; i++) {
 			_flickSamples[i] = 0.0;
 		}
 	}
 
-	float GetSmoothedStickRotation(float value, float bottomThreshold, float topThreshold, int maxSamples) {
+	float JoyShock::GetSmoothedStickRotation(float value, float bottomThreshold, float topThreshold, int maxSamples) {
 		// which sample in the circular smoothing buffer do we want to write over?
 		_frontSample--;
 		if (_frontSample < 0) _frontSample = NumSamples - 1;
@@ -496,7 +356,7 @@ public:
 		return result + value * immediateFactor;
 	}
 
-	void GetSmoothedGyro(float x, float y, float length, float bottomThreshold, float topThreshold, int maxSamples, float& outX, float& outY) {
+	void JoyShock::GetSmoothedGyro(float x, float y, float length, float bottomThreshold, float topThreshold, int maxSamples, float& outX, float& outY) {
 		// this is basically the same as we use for smoothing flick-stick rotations, but because this deals in vectors, it's a slightly different function. Not worth abstracting until it'll be used in more ways
 		// which item in the circular smoothing buffer will we write over?
 		_frontGyroSample--;
@@ -532,9 +392,8 @@ public:
 		outY = yResult + y * immediateFactor;
 	}
 
-	~JoyShock() {
+	JoyShock::~JoyShock() {
 	}
-};
 
 // https://stackoverflow.com/a/4119881/1130520 gives us case insensitive equality
 static bool iequals(const std::string& a, const std::string& b)
@@ -1765,7 +1624,7 @@ bool processDeadZones(float& x, float& y) {
 }
 
 void handleButtonChange(int index, bool pressed, const char* name, JoyShock* jc) {
-	switch (jc->btnState[index])
+	/*switch (jc->btnState[index])
 	{
 	case BtnState::NoPress:
 		if (pressed)
@@ -1876,7 +1735,7 @@ void handleButtonChange(int index, bool pressed, const char* name, JoyShock* jc)
 			jc->ApplyBtnRelease(*simMap, index);
 			printf("%s: false\n", simMap->name.c_str());
 		}
-		// else sim press is being held, as far as this button is concerned.
+		 else sim press is being held, as far as this button is concerned.
 		break;
 	}
 	case BtnState::HoldPress:
@@ -1974,7 +1833,7 @@ void handleButtonChange(int index, bool pressed, const char* name, JoyShock* jc)
 		break;
 		
 	}
-}
+*/}
 
 void handleTriggerChange(int softIndex, int fullIndex, TriggerMode mode, float pressed, char* softName, JoyShock* jc) {
 	std::string fullName(softName);
@@ -2516,9 +2375,9 @@ bool AutoLoadPoll(void *param)
 
 //int main(int argc, char *argv[]) {
 int wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLine, int cmdShow) {
-
 	// console
 	initConsole();
+
 	printf("Welcome to JoyShockMapper version %s!\n", version);
 	Whitelister whitelister(true); //Add on creation, Remove on destruction
 	if (whitelister) printf("JoyShockMapper was successfully whitelisted!\n");

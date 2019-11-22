@@ -19,6 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\DigitalButton.h" />
+    <ClInclude Include="include\pocket_fsm.h" />
+    <ClInclude Include="include\main.h" />
     <ClInclude Include="include\Whitelister.h" />
     <ClInclude Include="include\JoyShockLibrary.h" />
     <ClInclude Include="include\inputHelpers.cpp" />
@@ -33,10 +36,12 @@
     <ClInclude Include="three\visitor.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\DigitalButton.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Whitelister.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="cpp.hint" />
     <None Include="libs\JoyShockLibrary.dll" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

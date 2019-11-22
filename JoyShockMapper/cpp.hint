@@ -1,0 +1,8 @@
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define STATE(NAME, BASE) class NAME : public BASE { public: NAME(BASE &chain) : BASE(chain) { _name=#NAME; }
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define BASE_STATE(BASENAME) class BASENAME : public pocket_fsm::StateIF { friend class pocket_fsm::FiniteStateMachine<BASENAME>; protected: template<class S> void transitTo(std::function<void()> onTransit = nullptr) { static_assert(std::is_base_of<BASENAME, S>::value, "Parameter of transitTo needs to be a descendant of " #BASENAME); _onTransition = onTransit; if(_nextState) delete _nextState; _nextState = new S(*this); }
