@@ -40,7 +40,7 @@ public:
 		return _nextState;
 	}
 
-	const char *_name; // Stringified name of the concrete class
+	const char *name; // Stringified name of the concrete class
 protected:
 	// The next state that the state machine must transition to
 	StateIF *_nextState = nullptr;
@@ -67,23 +67,23 @@ public:
 
 	// Call this method with an event that S can react to!
 	template<class E>
-	inline void SendEvent(E &evt)
+	inline void sendEvent(E &evt)
 	{
 		static_assert(std::is_base_of<Event, E>::value, "Parameter of StateMachine::SendEvent needs to be a descendant of EventData");
 		lock();
 		_currentState->react(&evt);
-		SetCurrentstate(_currentState->GetNextState());
+		setCurrentstate(_currentState->GetNextState());
 		unlock();
 	}
 
-	inline const char * GetCurrentStateName() const
+	inline const char * getCurrentStateName() const
 	{
 		return _currentState->_name;
 	}
 
 protected:
 	// Descendants call this in their constructor to set the initial state 
-	void Initialize(S *initialState) 
+	void initialize(S *initialState) 
 	{
 		_currentState.reset(initialState);
 		_currentState->onEntry();
@@ -96,7 +96,7 @@ protected:
 
 private:
 	// This function runs the basic state machine logic event calls
-	void SetCurrentstate(StateIF *nextState)
+	void setCurrentstate(StateIF *nextState)
 	{
 		if (nextState)
 		{
@@ -126,11 +126,11 @@ protected: \
 // derived from BASE, and BASE is derived from StateIF. This sets up the chain.
 #define STATE_OF(NAME, BASE) \
 public: \
-	NAME(BASE &chain) : BASE(chain) { _name=#NAME; } 
+	NAME(BASE &chain) : BASE(chain) { name=#NAME; } 
 
 
 // Use this macro in the custom constructor of your initial state to initialize
 #define INITIAL_STATE_CTOR(NAME) \
-	_name = #NAME
+	name = #NAME
 
 }

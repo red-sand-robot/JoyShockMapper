@@ -20,7 +20,7 @@
 // C increases when all that's happened is some bugs have been fixed.
 // B increases and C resets to 0 when new features have been added.
 // A increases and B and C reset to 0 when major new features have been added that warrant a new major version, or replacing older features with better ones that require the user to interact with them differently
-const char* version = "1.4.0";
+const char* version = "2.0.0";
 
 #define PI 3.14159265359f
 
@@ -85,315 +85,320 @@ JoyShock::JoyShock(int uniqueHandle, float pollRate, int controllerSplitType, fl
 
 	}
 
-	WORD JoyShock::GetPressMapping(int index)
-	{
-		// Look at active chord mappings starting with the latest activates chord
-		for (auto activeChord = chordStack.begin(); activeChord != chordStack.end(); activeChord++)
-		{
-			for (auto chordPress : chord_mappings[*activeChord])
-			{
-				if (chordPress.btn == index)
-					return chordPress.pressBind;
-			}
-		}
-		return mappings[index];
-	}
+DigitalButton * JoyShock::GetButton(int index)
+{
+	return &btnState[index];
+}
 
-	WORD JoyShock::GetHoldMapping(int index)
+WORD JoyShock::GetPressMapping(int index)
+{
+	// Look at active chord mappings starting with the latest activates chord
+	for (auto activeChord = chordStack.begin(); activeChord != chordStack.end(); activeChord++)
 	{
-		// Look at active chord mappings starting with the latest activates chord
-		for (auto activeChord = chordStack.begin(); activeChord != chordStack.end(); activeChord++)
+		for (auto chordPress : chord_mappings[*activeChord])
 		{
-			for (auto chordPress : chord_mappings[*activeChord])
-			{
-				if (chordPress.btn == index)
-					return chordPress.holdBind;
-			}
-		}
-		return hold_mappings[index];
-	}
-
-	void JoyShock::ApplyBtnPress(int index, bool tap)
-	{
-		auto key = GetPressMapping(index);
-		if (key == CALIBRATE)
-		{
-			toggleContinuous ^= tap; //Toggle on tap
-			if (!tap || toggleContinuous) {
-				printf("Starting continuous calibration\n");
-				JslResetContinuousCalibration(intHandle);
-				JslStartContinuousCalibration(intHandle);
-			}
-		}
-		else if (key == GYRO_INV_X || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
-		{
-			gyroActionQueue.push_back({ index, key });
-		}
-		else
-		{
-			pressKey(key, true);
-		}
-		keyToRelease[index] = key;
-		if (chord_mappings.find(index) != chord_mappings.cend())
-		{
-			chordStack.push_front(index); // Always push at the fromt to make it a stack
+			if (chordPress.btn == index)
+				return chordPress.pressBind;
 		}
 	}
+	return mappings[index];
+}
 
-	void JoyShock::ApplyBtnHold(int index)
+WORD JoyShock::GetHoldMapping(int index)
+{
+	// Look at active chord mappings starting with the latest activates chord
+	for (auto activeChord = chordStack.begin(); activeChord != chordStack.end(); activeChord++)
 	{
-		auto key = GetHoldMapping(index);
-		if (key == CALIBRATE)
+		for (auto chordPress : chord_mappings[*activeChord])
 		{
+			if (chordPress.btn == index)
+				return chordPress.holdBind;
+		}
+	}
+	return hold_mappings[index];
+}
+
+void JoyShock::ApplyBtnPress(int index, bool tap)
+{
+	auto key = GetPressMapping(index);
+	if (key == CALIBRATE)
+	{
+		toggleContinuous ^= tap; //Toggle on tap
+		if (!tap || toggleContinuous) {
 			printf("Starting continuous calibration\n");
 			JslResetContinuousCalibration(intHandle);
 			JslStartContinuousCalibration(intHandle);
 		}
-		else if (key == GYRO_INV_X || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
+	}
+	else if (key == GYRO_INV_X || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
+	{
+		gyroActionQueue.push_back({ index, key });
+	}
+	else
+	{
+		pressKey(key, true);
+	}
+	keyToRelease[index] = key;
+	if (chord_mappings.find(index) != chord_mappings.cend())
+	{
+		chordStack.push_front(index); // Always push at the fromt to make it a stack
+	}
+}
+
+void JoyShock::ApplyBtnHold(int index)
+{
+	auto key = GetHoldMapping(index);
+	if (key == CALIBRATE)
+	{
+		printf("Starting continuous calibration\n");
+		JslResetContinuousCalibration(intHandle);
+		JslStartContinuousCalibration(intHandle);
+	}
+	else if (key == GYRO_INV_X || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
+	{
+		gyroActionQueue.push_back({ index, key });
+	}
+	else if (key != NO_HOLD_MAPPED)
+	{
+		pressKey(key, true);
+	}
+	keyToRelease[index] = key;
+	if (chord_mappings.find(index) != chord_mappings.cend())
+	{
+		chordStack.push_front(index); // Always push at the front
+	}
+}
+
+void JoyShock::ApplyBtnRelease(int index, bool tap)
+{
+	if (keyToRelease[index] == CALIBRATE)
+	{
+		if (!tap || !toggleContinuous) 
 		{
-			gyroActionQueue.push_back({ index, key });
-		}
-		else if (key != NO_HOLD_MAPPED)
-		{
-			pressKey(key, true);
-		}
-		keyToRelease[index] = key;
-		if (chord_mappings.find(index) != chord_mappings.cend())
-		{
-			chordStack.push_front(index); // Always push at the front
+			JslPauseContinuousCalibration(intHandle);
+			toggleContinuous = false; // if we've held the calibration button, we're disabling continuous calibration
+			printf("Gyro calibration set\n");
 		}
 	}
-
-	void JoyShock::ApplyBtnRelease(int index, bool tap)
+	else if (keyToRelease[index] == GYRO_INV_X || keyToRelease[index] == GYRO_ON_BIND || keyToRelease[index] == GYRO_OFF_BIND)
 	{
-		if (keyToRelease[index] == CALIBRATE)
-		{
-			if (!tap || !toggleContinuous) 
+		gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(), 
+			[index](auto pair)
 			{
-				JslPauseContinuousCalibration(intHandle);
-				toggleContinuous = false; // if we've held the calibration button, we're disabling continuous calibration
-				printf("Gyro calibration set\n");
-			}
-		}
-		else if (keyToRelease[index] == GYRO_INV_X || keyToRelease[index] == GYRO_ON_BIND || keyToRelease[index] == GYRO_OFF_BIND)
-		{
-			gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(), 
-				[index](auto pair)
-				{
-					return pair.first == index;
-				}));
-		}
-		else if (keyToRelease[index] != NO_HOLD_MAPPED)
-		{
-			pressKey(keyToRelease[index], false);
-		}
-		auto foundChord = std::find(chordStack.begin(), chordStack.end(), index);
-		if (foundChord != chordStack.end())
-		{
-			// The chord is released
-			chordStack.erase(foundChord);
-		}
+				return pair.first == index;
+			}));
 	}
-
-	void JoyShock::ApplyBtnPress(const ComboMap &simPress, int index, bool tap)
+	else if (keyToRelease[index] != NO_HOLD_MAPPED)
 	{
-		if (simPress.pressBind == CALIBRATE)
-		{
-			toggleContinuous ^= tap; //Toggle on tap
-			if (!tap || toggleContinuous) {
-				printf("Starting continuous calibration\n");
-				JslResetContinuousCalibration(intHandle);
-				JslStartContinuousCalibration(intHandle);
-			}
-		}
-		else if (simPress.pressBind == GYRO_INV_X || simPress.pressBind == GYRO_ON_BIND || simPress.pressBind == GYRO_OFF_BIND)
-		{
-			// I know I don't handle multiple inversion. Otherwise GYRO_INV_X on sim press would do nothing
-			gyroActionQueue.push_back({ index, simPress.pressBind });
-			gyroActionQueue.push_back({ simPress.btn, simPress.pressBind });
-		}
-		else
-		{
-			pressKey(simPress.pressBind, true);
-		}
-		keyToRelease[simPress.btn] = simPress.pressBind;
-		keyToRelease[index] = simPress.pressBind;
-		// Combo presses don't enable chords
+		pressKey(keyToRelease[index], false);
 	}
-
-	void JoyShock::ApplyBtnHold(const ComboMap &simPress, int index)
+	auto foundChord = std::find(chordStack.begin(), chordStack.end(), index);
+	if (foundChord != chordStack.end())
 	{
-		if (simPress.holdBind == CALIBRATE)
-		{
+		// The chord is released
+		chordStack.erase(foundChord);
+	}
+}
+
+void JoyShock::ApplyBtnPress(const ComboMap &simPress, int index, bool tap)
+{
+	if (simPress.pressBind == CALIBRATE)
+	{
+		toggleContinuous ^= tap; //Toggle on tap
+		if (!tap || toggleContinuous) {
 			printf("Starting continuous calibration\n");
 			JslResetContinuousCalibration(intHandle);
 			JslStartContinuousCalibration(intHandle);
 		}
-		else if (simPress.holdBind == GYRO_INV_X || simPress.holdBind == GYRO_ON_BIND || simPress.holdBind == GYRO_OFF_BIND)
-		{
-			// I know I don't handle multiple inversion. Otherwise GYRO_INV_X on sim press would do nothing
-			gyroActionQueue.push_back({ index, simPress.holdBind });
-			gyroActionQueue.push_back({ simPress.btn, simPress.holdBind });
-		}
-		else if (simPress.holdBind != NO_HOLD_MAPPED)
-		{
-			pressKey(simPress.holdBind, true);
-		}
-		keyToRelease[simPress.btn] = simPress.holdBind;
-		keyToRelease[index] = simPress.holdBind;
-		// Combo presses don't enable chords
 	}
-
-	void JoyShock::ApplyBtnRelease(const ComboMap &simPress, int index, bool tap)
+	else if (simPress.pressBind == GYRO_INV_X || simPress.pressBind == GYRO_ON_BIND || simPress.pressBind == GYRO_OFF_BIND)
 	{
-		if (keyToRelease[index] == CALIBRATE)
+		// I know I don't handle multiple inversion. Otherwise GYRO_INV_X on sim press would do nothing
+		gyroActionQueue.push_back({ index, simPress.pressBind });
+		gyroActionQueue.push_back({ simPress.btn, simPress.pressBind });
+	}
+	else
+	{
+		pressKey(simPress.pressBind, true);
+	}
+	keyToRelease[simPress.btn] = simPress.pressBind;
+	keyToRelease[index] = simPress.pressBind;
+	// Combo presses don't enable chords
+}
+
+void JoyShock::ApplyBtnHold(const ComboMap &simPress, int index)
+{
+	if (simPress.holdBind == CALIBRATE)
+	{
+		printf("Starting continuous calibration\n");
+		JslResetContinuousCalibration(intHandle);
+		JslStartContinuousCalibration(intHandle);
+	}
+	else if (simPress.holdBind == GYRO_INV_X || simPress.holdBind == GYRO_ON_BIND || simPress.holdBind == GYRO_OFF_BIND)
+	{
+		// I know I don't handle multiple inversion. Otherwise GYRO_INV_X on sim press would do nothing
+		gyroActionQueue.push_back({ index, simPress.holdBind });
+		gyroActionQueue.push_back({ simPress.btn, simPress.holdBind });
+	}
+	else if (simPress.holdBind != NO_HOLD_MAPPED)
+	{
+		pressKey(simPress.holdBind, true);
+	}
+	keyToRelease[simPress.btn] = simPress.holdBind;
+	keyToRelease[index] = simPress.holdBind;
+	// Combo presses don't enable chords
+}
+
+void JoyShock::ApplyBtnRelease(const ComboMap &simPress, int index, bool tap)
+{
+	if (keyToRelease[index] == CALIBRATE)
+	{
+		if (!tap || !toggleContinuous)
 		{
-			if (!tap || !toggleContinuous)
+			JslPauseContinuousCalibration(intHandle);
+			toggleContinuous = false; // if we've held the calibration button, we're disabling continuous calibration
+			printf("Gyro calibration set\n");
+		}
+	}
+	else if (keyToRelease[index] == GYRO_INV_X || keyToRelease[index] == GYRO_ON_BIND || keyToRelease[index] == GYRO_OFF_BIND)
+	{
+		gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(),
+			[index](auto pair)
 			{
-				JslPauseContinuousCalibration(intHandle);
-				toggleContinuous = false; // if we've held the calibration button, we're disabling continuous calibration
-				printf("Gyro calibration set\n");
-			}
-		}
-		else if (keyToRelease[index] == GYRO_INV_X || keyToRelease[index] == GYRO_ON_BIND || keyToRelease[index] == GYRO_OFF_BIND)
-		{
-			gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(),
-				[index](auto pair)
-				{
-					return pair.first == index;
-				}));
-			gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(),
-				[simPress](auto pair)
-				{
-					return pair.first == simPress.btn;
-				}));
-		}
-		else if (keyToRelease[index] != NO_HOLD_MAPPED)
-		{
-			pressKey(keyToRelease[index], false);
-		}
-		auto foundChord = std::find(chordStack.begin(), chordStack.end(), index);
-		if (foundChord != chordStack.end())
-		{
-			// The chord is released
-			chordStack.erase(foundChord);
-		}
+				return pair.first == index;
+			}));
+		gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(),
+			[simPress](auto pair)
+			{
+				return pair.first == simPress.btn;
+			}));
 	}
-
-	// Indicate if the button is currently sending an assigned mapping.
-	bool JoyShock::IsActive(int mappingIndex)
+	else if (keyToRelease[index] != NO_HOLD_MAPPED)
 	{
-		if (mappingIndex >= 0 && mappingIndex < MAPPING_SIZE)
-		{
-			//auto state = btnState[mappingIndex].GetCurrentState();
-			//return state == DigitalButton::E_BtnPress || state == DigitalButton::E_HoldPress; // Add Sim Press State? Only with Setting?
-		}
-		return false;
+		pressKey(keyToRelease[index], false);
 	}
-
-	inline bool JoyShock::HasSimMappings(int index)
+	auto foundChord = std::find(chordStack.begin(), chordStack.end(), index);
+	if (foundChord != chordStack.end())
 	{
-		return sim_mappings.find(index) != sim_mappings.cend() && !sim_mappings[index].empty();
+		// The chord is released
+		chordStack.erase(foundChord);
 	}
+}
 
-	const ComboMap* JoyShock::GetMatchingSimMap(int index)
+// Indicate if the button is currently sending an assigned mapping.
+bool JoyShock::IsActive(int mappingIndex)
+{
+	if (mappingIndex >= 0 && mappingIndex < MAPPING_SIZE)
 	{
-		// Find the simMapping where the other btn is in the same state as this btn.
-		// POTENTIAL FLAW: The mapping you find may not necessarily be the one that got you in a 
-		// Simultaneous state in the first place if there is a second SimPress going on where one
-		// of the buttons has a third SimMap with this one. I don't know if it's worth solving though...
-		if (HasSimMappings(index))
-		{
-			auto match = std::find_if(sim_mappings[index].cbegin(), sim_mappings[index].cend(),
-				[this, index](const auto& simMap)
-				{
-					return false;
-					//return btnState[simMap.btn].GetCurrentState() == btnState[index].GetCurrentState();
-				});
-			return match == sim_mappings[index].cend() ? nullptr : &*match;
-		}
-		return nullptr;
+		//auto state = btnState[mappingIndex].GetCurrentState();
+		//return state == DigitalButton::E_BtnPress || state == DigitalButton::E_HoldPress; // Add Sim Press State? Only with Setting?
 	}
+	return false;
+}
 
-	void JoyShock::ResetSmoothSample() {
-		_frontSample = 0;
-		for (int i = 0; i < NumSamples; i++) {
-			_flickSamples[i] = 0.0;
-		}
-	}
+inline bool JoyShock::HasSimMappings(int index)
+{
+	return sim_mappings.find(index) != sim_mappings.cend() && !sim_mappings[index].empty();
+}
 
-	float JoyShock::GetSmoothedStickRotation(float value, float bottomThreshold, float topThreshold, int maxSamples) {
-		// which sample in the circular smoothing buffer do we want to write over?
-		_frontSample--;
-		if (_frontSample < 0) _frontSample = NumSamples - 1;
-		// if this input is bigger than the top threshold, it'll all be consumed immediately; 0 gets put into the smoothing buffer. If it's below the bottomThreshold, it'll all be put in the smoothing buffer
-		float length = abs(value);
-		float immediateFactor;
-		if (topThreshold <= bottomThreshold) {
-			immediateFactor = 0.0f;
-		}
-		else {
-			immediateFactor = (length - bottomThreshold) / (topThreshold - bottomThreshold);
-		}
-		// clamp to [0, 1] range
-		if (immediateFactor < 0.0f) {
-			immediateFactor = 0.0f;
-		}
-		else if (immediateFactor > 1.0f) {
-			immediateFactor = 1.0f;
-		}
-		float smoothFactor = 1.0f - immediateFactor;
-		// now we can push the smooth sample (or as much of it as we want smoothed)
-		float frontSample = _flickSamples[_frontSample] = value * smoothFactor;
-		// and now calculate smoothed result
-		float result = frontSample / maxSamples;
-		for (int i = 1; i < maxSamples; i++) {
-			int rotatedIndex = (_frontSample + i) % NumSamples;
-			frontSample = _flickSamples[rotatedIndex];
-			result += frontSample / maxSamples;
-		}
-		// finally, add immediate portion
-		return result + value * immediateFactor;
+const ComboMap* JoyShock::GetMatchingSimMap(int index)
+{
+	// Find the simMapping where the other btn is in the same state as this btn.
+	// POTENTIAL FLAW: The mapping you find may not necessarily be the one that got you in a 
+	// Simultaneous state in the first place if there is a second SimPress going on where one
+	// of the buttons has a third SimMap with this one. I don't know if it's worth solving though...
+	if (HasSimMappings(index))
+	{
+		auto match = std::find_if(sim_mappings[index].cbegin(), sim_mappings[index].cend(),
+			[this, index](const auto& simMap)
+			{
+				return false;
+				//return btnState[simMap.btn].GetCurrentState() == btnState[index].GetCurrentState();
+			});
+		return match == sim_mappings[index].cend() ? nullptr : &*match;
 	}
+	return nullptr;
+}
 
-	void JoyShock::GetSmoothedGyro(float x, float y, float length, float bottomThreshold, float topThreshold, int maxSamples, float& outX, float& outY) {
-		// this is basically the same as we use for smoothing flick-stick rotations, but because this deals in vectors, it's a slightly different function. Not worth abstracting until it'll be used in more ways
-		// which item in the circular smoothing buffer will we write over?
-		_frontGyroSample--;
-		if (_frontGyroSample < 0) _frontGyroSample = MaxGyroSamples - 1;
-		float immediateFactor;
-		if (topThreshold <= bottomThreshold) {
-			immediateFactor = length < bottomThreshold ? 0.0f : 1.0f;
-		}
-		else {
-			immediateFactor = (length - bottomThreshold) / (topThreshold - bottomThreshold);
-		}
-		// clamp to [0, 1] range
-		if (immediateFactor < 0.0f) {
-			immediateFactor = 0.0f;
-		}
-		else if (immediateFactor > 1.0f) {
-			immediateFactor = 1.0f;
-		}
-		float smoothFactor = 1.0f - immediateFactor;
-		// now we can push the smooth sample (or as much of it as we want smoothed)
-		GyroSample frontSample = _gyroSamples[_frontGyroSample] = { x * smoothFactor, y * smoothFactor };
-		// and now calculate smoothed result
-		float xResult = frontSample.x / maxSamples;
-		float yResult = frontSample.y / maxSamples;
-		for (int i = 1; i < maxSamples; i++) {
-			int rotatedIndex = (_frontGyroSample + i) % MaxGyroSamples;
-			frontSample = _gyroSamples[rotatedIndex];
-			xResult += frontSample.x / maxSamples;
-			yResult += frontSample.y / maxSamples;
-		}
-		// finally, add immediate portion
-		outX = xResult + x * immediateFactor;
-		outY = yResult + y * immediateFactor;
+void JoyShock::ResetSmoothSample() {
+	_frontSample = 0;
+	for (int i = 0; i < NumSamples; i++) {
+		_flickSamples[i] = 0.0;
 	}
+}
 
-	JoyShock::~JoyShock() {
+float JoyShock::GetSmoothedStickRotation(float value, float bottomThreshold, float topThreshold, int maxSamples) {
+	// which sample in the circular smoothing buffer do we want to write over?
+	_frontSample--;
+	if (_frontSample < 0) _frontSample = NumSamples - 1;
+	// if this input is bigger than the top threshold, it'll all be consumed immediately; 0 gets put into the smoothing buffer. If it's below the bottomThreshold, it'll all be put in the smoothing buffer
+	float length = abs(value);
+	float immediateFactor;
+	if (topThreshold <= bottomThreshold) {
+		immediateFactor = 0.0f;
 	}
+	else {
+		immediateFactor = (length - bottomThreshold) / (topThreshold - bottomThreshold);
+	}
+	// clamp to [0, 1] range
+	if (immediateFactor < 0.0f) {
+		immediateFactor = 0.0f;
+	}
+	else if (immediateFactor > 1.0f) {
+		immediateFactor = 1.0f;
+	}
+	float smoothFactor = 1.0f - immediateFactor;
+	// now we can push the smooth sample (or as much of it as we want smoothed)
+	float frontSample = _flickSamples[_frontSample] = value * smoothFactor;
+	// and now calculate smoothed result
+	float result = frontSample / maxSamples;
+	for (int i = 1; i < maxSamples; i++) {
+		int rotatedIndex = (_frontSample + i) % NumSamples;
+		frontSample = _flickSamples[rotatedIndex];
+		result += frontSample / maxSamples;
+	}
+	// finally, add immediate portion
+	return result + value * immediateFactor;
+}
+
+void JoyShock::GetSmoothedGyro(float x, float y, float length, float bottomThreshold, float topThreshold, int maxSamples, float& outX, float& outY) {
+	// this is basically the same as we use for smoothing flick-stick rotations, but because this deals in vectors, it's a slightly different function. Not worth abstracting until it'll be used in more ways
+	// which item in the circular smoothing buffer will we write over?
+	_frontGyroSample--;
+	if (_frontGyroSample < 0) _frontGyroSample = MaxGyroSamples - 1;
+	float immediateFactor;
+	if (topThreshold <= bottomThreshold) {
+		immediateFactor = length < bottomThreshold ? 0.0f : 1.0f;
+	}
+	else {
+		immediateFactor = (length - bottomThreshold) / (topThreshold - bottomThreshold);
+	}
+	// clamp to [0, 1] range
+	if (immediateFactor < 0.0f) {
+		immediateFactor = 0.0f;
+	}
+	else if (immediateFactor > 1.0f) {
+		immediateFactor = 1.0f;
+	}
+	float smoothFactor = 1.0f - immediateFactor;
+	// now we can push the smooth sample (or as much of it as we want smoothed)
+	GyroSample frontSample = _gyroSamples[_frontGyroSample] = { x * smoothFactor, y * smoothFactor };
+	// and now calculate smoothed result
+	float xResult = frontSample.x / maxSamples;
+	float yResult = frontSample.y / maxSamples;
+	for (int i = 1; i < maxSamples; i++) {
+		int rotatedIndex = (_frontGyroSample + i) % MaxGyroSamples;
+		frontSample = _gyroSamples[rotatedIndex];
+		xResult += frontSample.x / maxSamples;
+		yResult += frontSample.y / maxSamples;
+	}
+	// finally, add immediate portion
+	outX = xResult + x * immediateFactor;
+	outY = yResult + y * immediateFactor;
+}
+
+JoyShock::~JoyShock() {
+}
 
 // https://stackoverflow.com/a/4119881/1130520 gives us case insensitive equality
 static bool iequals(const std::string& a, const std::string& b)
@@ -1624,214 +1629,13 @@ bool processDeadZones(float& x, float& y) {
 }
 
 void handleButtonChange(int index, bool pressed, const char* name, JoyShock* jc) {
-	switch (jc->btnState[index])
+	if (pressed)
 	{
-	case BtnState::NoPress:
-		if (pressed)
-		{
-			if (sim_mappings.find(index) != sim_mappings.end() && sim_mappings[index].size() > 0)
-			{
-				jc->btnState[index] = BtnState::WaitSim;
-				jc->press_times[index] = jc->time_now;
-			}
-			else if (jc->GetHoldMapping(index))
-			{
-				jc->btnState[index] = BtnState::WaitHold;
-				jc->press_times[index] = jc->time_now;
-			}
-			else
-			{
-				jc->btnState[index] = BtnState::BtnPress;
-				jc->ApplyBtnPress(index);
-				printf("%s: true\n", name);
-			}
-		}
-		break;
-	case BtnState::BtnPress:
-		if (!pressed)
-		{
-			jc->btnState[index] = BtnState::NoPress;
-			jc->ApplyBtnRelease(index);
-			printf("%s: false\n", name);
-		}
-		break;
-	case BtnState::WaitSim:
-		if (!pressed)
-		{
-			jc->btnState[index] = BtnState::TapRelease;
-			jc->press_times[index] = jc->time_now;
-			jc->ApplyBtnPress(index, true);
-			printf("%s: tapped\n", name);
-		}
-		else
-		{
-			// Is there a sim mapping on this button where the other button is in WaitSim state too?
-			auto simMap = jc->GetMatchingSimMap(index);
-			if (simMap)
-			{
-				// We have a simultaneous press!
-				if (simMap->holdBind)
-				{
-					jc->btnState[index] = BtnState::WaitSimHold;
-					jc->btnState[simMap->btn] = BtnState::WaitSimHold;
-					jc->press_times[index] = jc->time_now; // Reset Timer
-				}
-				else
-				{
-					jc->btnState[index] = BtnState::SimPress;
-					jc->btnState[simMap->btn] = BtnState::SimPress;
-					jc->ApplyBtnPress(*simMap, index);
-					printf("%s: true\n", simMap->name.c_str());
-				}
-			}
-			else if (jc->GetPressDurationMS(index) > MAGIC_SIM_DELAY)
-			{
-				// Sim delay expired!
-				if (jc->GetHoldMapping(index))
-				{
-					jc->btnState[index] = BtnState::WaitHold;
-					// Don't reset time
-				}
-				else
-				{
-					jc->btnState[index] = BtnState::BtnPress;
-					jc->ApplyBtnPress(index);
-					printf("%s: true\n", name);
-				}
-			}
-			// Else let time flow, stay in this state, no output.
-		}
-		break;
-	case BtnState::WaitHold:
-		if (!pressed)
-		{
-			jc->btnState[index] = BtnState::TapRelease;
-			jc->press_times[index] = jc->time_now;
-			jc->ApplyBtnPress(index, true);
-			printf("%s: tapped\n", name);
-		}
-		else if (jc->GetPressDurationMS(index) > MAGIC_HOLD_TIME)
-		{
-			jc->btnState[index] = BtnState::HoldPress;
-			jc->ApplyBtnHold(index);
-			printf("%s: held\n", name);
-		}
-		// Else let time flow, stay in this state, no output.
-		break;
-	case BtnState::SimPress:
-	{
-		// Which is the sim mapping where the other button is in SimPress state too?
-		auto simMap = jc->GetMatchingSimMap(index);
-		if (!simMap)
-		{
-			// Should never happen but added for robustness.
-			printf("Error: lost track of matching sim press for %s! Resetting to NoPress.\n", name);
-			jc->btnState[index] = BtnState::NoPress;
-		}
-		else if (!pressed)
-		{
-			jc->btnState[index] = BtnState::SimRelease;
-			jc->btnState[simMap->btn] = BtnState::SimRelease;
-			jc->ApplyBtnRelease(*simMap, index);
-			printf("%s: false\n", simMap->name.c_str());
-		}
-		 else sim press is being held, as far as this button is concerned.
-		break;
+		jc->btnState[index].sendEvent(PressEvent());
 	}
-	case BtnState::HoldPress:
-		if (!pressed)
-		{
-			jc->btnState[index] = BtnState::NoPress;
-			jc->ApplyBtnRelease(index);
-			printf("%s: hold released\n", name);
-		}
-		break;
-	case BtnState::WaitSimHold:
+	else
 	{
-		// Which is the sim mapping where the other button is in WaitSimHold state too?
-		auto simMap = jc->GetMatchingSimMap(index);
-		if (!simMap)
-		{
-			// Should never happen but added for robustness.
-			printf("Error: lost track of matching sim press for %s! Resetting to NoPress.\n", name);
-			jc->btnState[index] = BtnState::NoPress;
-		}
-		else if (!pressed)
-		{
-			jc->btnState[index] = BtnState::SimTapRelease;
-			jc->btnState[simMap->btn] = BtnState::SimTapRelease;
-			jc->press_times[index] = jc->time_now;
-			jc->press_times[simMap->btn] = jc->time_now;
-			jc->ApplyBtnPress(*simMap, index, true);
-			printf("%s: tapped\n", simMap->name.c_str());
-		}
-		else if (jc->GetPressDurationMS(index) > MAGIC_HOLD_TIME)
-		{
-			jc->btnState[index] = BtnState::SimHold;
-			jc->btnState[simMap->btn] = BtnState::SimHold;
-			jc->ApplyBtnHold(*simMap, index);
-			printf("%s: held\n", simMap->name.c_str());
-			// Else let time flow, stay in this state, no output.
-		}
-		break;
-	}
-	case BtnState::SimHold:
-	{
-		// Which is the sim mapping where the other button is in SimHold state too?
-		auto simMap = jc->GetMatchingSimMap(index);
-		if (!simMap)
-		{
-			// Should never happen but added for robustness.
-			printf("Error: lost track of matching sim press for %s! Resetting to NoPress.\n", name);
-			jc->btnState[index] = BtnState::NoPress;
-		}
-		else if (!pressed)
-		{
-			jc->btnState[index] = BtnState::SimRelease;
-			jc->btnState[simMap->btn] = BtnState::SimRelease;
-			jc->ApplyBtnRelease(*simMap, index);
-			printf("%s: hold released\n", simMap->name.c_str());
-		}
-		break;
-	}
-	case BtnState::SimRelease:
-		if (!pressed)
-		{
-			jc->btnState[index] = BtnState::NoPress;
-		}
-		break;
-	case BtnState::SimTapRelease:
-	{
-		// Which is the sim mapping where the other button is in SimTapRelease state too?
-		auto simMap = jc->GetMatchingSimMap(index);
-		if (!simMap)
-		{
-			// Should never happen but added for robustness.
-			printf("Error: lost track of matching sim press for %s! Resetting to NoPress.\n", name);
-			jc->btnState[index] = BtnState::NoPress;
-		}
-		// I hate making an exception for GYRO_OFF -,-
-		else if (jc->keyToRelease[index] != GYRO_OFF_BIND || jc->GetPressDurationMS(index) > MAGIC_TAP_DURATION)
-		{
-			jc->ApplyBtnRelease(*simMap, index, true);
-			jc->btnState[index] = BtnState::SimRelease;
-			jc->btnState[simMap->btn] = BtnState::SimRelease;
-		}
-		break;
-	}
-	case BtnState::TapRelease:
-		// I hate making an exception for GYRO_OFF -,-
-		if (jc->keyToRelease[index] != GYRO_OFF_BIND || jc->GetPressDurationMS(index) > MAGIC_TAP_DURATION)
-		{
-			jc->ApplyBtnRelease(index, true);
-			jc->btnState[index] = BtnState::NoPress;
-		}
-		break;
-	default:
-		printf("Invalid button state %d: Resetting to NoPress\n", jc->btnState[index]);
-		jc->btnState[index] = BtnState::NoPress;
-		break;
-		
+		jc->btnState[index].sendEvent(ReleaseEvent());
 	}
 }
 

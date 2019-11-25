@@ -2,7 +2,6 @@
 #include "JoyShockLibrary.h"
 #include "DigitalButton.h"
 
-#include <chrono>
 #include <deque>
 #include <vector>
 #include <windows.h>
@@ -133,14 +132,12 @@ public:
 	const int NumSamples = 16;
 	int intHandle;
 
-	std::chrono::steady_clock::time_point press_times[MAPPING_SIZE];
+	
 	//BtnState btnState[MAPPING_SIZE];
 	std::vector<DigitalButton> btnState;
-	WORD keyToRelease[MAPPING_SIZE]; // At key press, remember what to release
 	std::deque<int> chordStack; // Represents the remapping layers active. Each item needs to have an entry in chord_mappings.
 	std::deque<std::pair<int, WORD>> gyroActionQueue; // Queue of gyro control actions currently in effect
 	std::chrono::steady_clock::time_point started_flick;
-	std::chrono::steady_clock::time_point time_now;
 	// tap_release_queue has been replaced with button states *TapRelease. The hold time of the tap is the polling period of the device.
 	float delta_flick = 0.0;
 	float flick_percent_done = 0.0;
@@ -154,6 +151,8 @@ public:
 	float left_acceleration = 1.0;
 	float right_acceleration = 1.0;
 	std::vector<DstState> triggerState; // State of analog triggers when skip mode is active
+
+	DigitalButton *GetButton(int index) override;
 
 	WORD GetPressMapping(int index);
 
@@ -172,7 +171,7 @@ public:
 	void ApplyBtnRelease(const ComboMap &simPress, int index, bool tap = false);
 
 	// Pretty wrapper
-	inline float GetPressDurationMS(int index)
+	inline float GetPressDurationMS(int index) override
 	{
 		return static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(time_now - press_times[index]).count());
 	}
@@ -182,7 +181,7 @@ public:
 
 	inline bool HasSimMappings(int index);
 
-	const ComboMap* GetMatchingSimMap(int index);
+	const ComboMap* GetMatchingSimMap(int index) override;
 
 	void ResetSmoothSample();
 
