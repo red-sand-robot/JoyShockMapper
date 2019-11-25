@@ -1,33 +1,38 @@
 #include "DigitalButton.h"
 #include "main.h"
 
-// Step #5: Forward Declare your concrete State
+// Step #5: Forward Declare your concrete States
 class NoPress;
 class BtnPress;
 
 // Step #6: For each concrete state:
-//  - Declare using Macro
-//  - Do things onEntry/Exit
-//  - React to all events that the state supports
-//  - Call transit when you want to change state, transition action is optional
-//  - Transition occurs after returning from the react function
-//  - Define a constructor for your initial state, calling INIT_BASE macro and initializing custom fields.
-STATE(NoPress, ButtonState)
-	NoPress(JoyShock *p_jc, int i)
+//  - Declare and use macro to define chaining constructor
+//  - Implement all abstract function and override those desired: onEntry/Exit and react to events
+//  - Call changeState when appropriate, transition action is optional and occurs between exit and entry.
+//  - State transition occurs after returning from the react function
+class NoPress : public ButtonState
+{
+	STATE_OF(NoPress, ButtonState)
+
+	// 6.2 Define a constructor for your initial state, calling macro and initializing custom fields.
+	NoPress(JoyShockIF *p_jc, int i)
 	{
+		INITIAL_STATE_CTOR(NoPress);
 		jc = p_jc;
 		index = i;
-		INIT_BASE(NoPress);
 	}
 
 	void react(PressEvent *evt) override
 	{
 		// You can use lambda for transition function
-		transitTo<BtnPress>([this]() { printf("(%s) press true\n", _name); });
+		changeState<BtnPress>([this]() { printf("(%s) press true\n", _name); });
 	}
 };
 
-STATE(BtnPress, ButtonState)
+class BtnPress : public ButtonState
+{
+	STATE_OF(BtnPress, ButtonState)
+
 	void onEntry() override
 	{
 		jc->ApplyBtnPress(index);
@@ -36,7 +41,7 @@ STATE(BtnPress, ButtonState)
 	void react(ReleaseEvent *evt) override
 	{
 		// Or you can use std::bind with a member function
-		transitTo<NoPress>(std::bind(&BtnPress::ReleaseTransition, this));
+		changeState<NoPress>(std::bind(&BtnPress::ReleaseTransition, this));
 	}
 
 	void ReleaseTransition()
@@ -52,9 +57,9 @@ STATE(BtnPress, ButtonState)
 
 // Step #7: Define the state machine functions
 //  - Constructor calls initialize() with an instance of your initial state. StateMachine takes ownership of pointer.
-//  - Event functions create event data and sends it to the current state
-DigitalButton::DigitalButton(JoyShock &jc, int index)
+//  - Optionally override lock/unlock functions to secure cross thread operation
+DigitalButton::DigitalButton(JoyShockIF &jc, int index)
 	: FiniteStateMachine()
-{
+{;
 	Initialize(new NoPress(&jc, index));
 }

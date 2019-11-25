@@ -1,5 +1,6 @@
 #pragma once
 #include "JoyShockLibrary.h"
+#include "DigitalButton.h"
 
 #include <chrono>
 #include <deque>
@@ -116,7 +117,7 @@ typedef struct GyroSample {
 	float y;
 } GyroSample;
 
-class JoyShock {
+class JoyShock : public JoyShockIF{
 private:
 	float _weightsRemaining[16];
 	float _flickSamples[16];
@@ -158,11 +159,11 @@ public:
 
 	WORD GetHoldMapping(int index);
 
-	void ApplyBtnPress(int index, bool tap = false);
+	void ApplyBtnPress(int index, bool tap = false) override;
 
 	void ApplyBtnHold(int index);
 
-	void ApplyBtnRelease(int index, bool tap = false);
+	void ApplyBtnRelease(int index, bool tap = false) override;
 
 	void ApplyBtnPress(const ComboMap &simPress, int index, bool tap = false);
 

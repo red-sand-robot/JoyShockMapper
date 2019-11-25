@@ -1624,7 +1624,7 @@ bool processDeadZones(float& x, float& y) {
 }
 
 void handleButtonChange(int index, bool pressed, const char* name, JoyShock* jc) {
-	/*switch (jc->btnState[index])
+	switch (jc->btnState[index])
 	{
 	case BtnState::NoPress:
 		if (pressed)
@@ -1833,7 +1833,7 @@ void handleButtonChange(int index, bool pressed, const char* name, JoyShock* jc)
 		break;
 		
 	}
-*/}
+}
 
 void handleTriggerChange(int softIndex, int fullIndex, TriggerMode mode, float pressed, char* softName, JoyShock* jc) {
 	std::string fullName(softName);

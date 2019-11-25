@@ -26,7 +26,8 @@ public:
 
 	StateIF() = default;
 
-	virtual ~StateIF() {
+	virtual ~StateIF() 
+	{
 		if (_onTransition) 
 			_onTransition();
 	}
@@ -34,12 +35,13 @@ public:
 	virtual void onEntry() = 0;
 	virtual void onExit() = 0;
 
-	const char *_name;
-protected:
-	// The BASE_STATE macro defines this function and allows a state to transition to another
-	template<class S>
-	void transitTo(std::function<void()> onTransit = nullptr) = 0;
+	inline StateIF *GetNextState() 
+	{
+		return _nextState;
+	}
 
+	const char *_name; // Stringified name of the concrete class
+protected:
 	// The next state that the state machine must transition to
 	StateIF *_nextState = nullptr;
 
@@ -58,16 +60,20 @@ public:
 
 	// Basic constructor / destructor
 	FiniteStateMachine() : _currentState(nullptr) {}
-	virtual ~FiniteStateMachine() {}
+	virtual ~FiniteStateMachine() 
+	{
+		_currentState->onExit(); // Cleanup
+	}
 
 	// Call this method with an event that S can react to!
 	template<class E>
 	inline void SendEvent(E &evt)
 	{
 		static_assert(std::is_base_of<Event, E>::value, "Parameter of StateMachine::SendEvent needs to be a descendant of EventData");
-
+		lock();
 		_currentState->react(&evt);
-		SetCurrentstate(_currentState->_nextState);
+		SetCurrentstate(_currentState->GetNextState());
+		unlock();
 	}
 
 	inline const char * GetCurrentStateName() const
@@ -82,6 +88,11 @@ protected:
 		_currentState.reset(initialState);
 		_currentState->onEntry();
 	}
+
+	// Override these functions using your favorite lock mecanism 
+	// to secure State Machine cross thread operation
+	virtual void lock() {};
+	virtual void unlock() {};
 
 private:
 	// This function runs the basic state machine logic event calls
@@ -100,30 +111,26 @@ private:
 
 };
 
-// Declare your base state class using this macro
-// A StateMachine for that bas class will initialize the hook through friendship privilege
+// Call this macro in your base state derving from StateIF
 #define BASE_STATE(BASENAME) \
-class BASENAME : public pocket_fsm::StateIF { \
-	friend class pocket_fsm::FiniteStateMachine<BASENAME>; \
 protected: \
 	template<class S> \
-	void transitTo(std::function<void()> onTransit = nullptr) { \
-		static_assert(std::is_base_of<BASENAME, S>::value, "Parameter of transitTo needs to be a descendant of " #BASENAME); \
+	void changeState(std::function<void()> onTransit = nullptr) { \
+		static_assert(std::is_base_of<BASENAME, S>::value, "Parameter of changeState needs to be a descendant of " #BASENAME); \
 		_onTransition = onTransit; \
 		if(_nextState) delete _nextState; \
 		_nextState = new S(*this); \
 	}
 
-// Use this macro to define a specific state where NAME is the name of your State Class
-// derived from BASE, and BASE is derived from StateIF
-#define STATE(NAME, BASE) \
-class NAME : public BASE { \
+// Call this macro in a concrete state where NAME is the name of your State Class
+// derived from BASE, and BASE is derived from StateIF. This sets up the chain.
+#define STATE_OF(NAME, BASE) \
 public: \
 	NAME(BASE &chain) : BASE(chain) { _name=#NAME; } 
 
 
 // Use this macro in the custom constructor of your initial state to initialize
-#define INIT_BASE(NAME) \
+#define INITIAL_STATE_CTOR(NAME) \
 	_name = #NAME
 
 }
