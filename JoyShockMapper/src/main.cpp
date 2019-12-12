@@ -130,7 +130,7 @@ void JoyShock::ApplyBtnPress(int index, bool tap)
 			JslStartContinuousCalibration(intHandle);
 		}
 	}
-	else if (key == GYRO_INV_X || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
+	else if (key == GYRO_INV_X || key == GYRO_INV_Y || key == GYRO_INVERT || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
 	{
 		gyroActionQueue.push_back({ index, key });
 	}
@@ -154,7 +154,7 @@ void JoyShock::ApplyBtnHold(int index)
 		JslResetContinuousCalibration(intHandle);
 		JslStartContinuousCalibration(intHandle);
 	}
-	else if (key == GYRO_INV_X || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
+	else if (key == GYRO_INV_X || key == GYRO_INV_Y || key == GYRO_INVERT || key == GYRO_ON_BIND || key == GYRO_OFF_BIND)
 	{
 		gyroActionQueue.push_back({ index, key });
 	}
@@ -173,16 +173,16 @@ void JoyShock::ApplyBtnRelease(int index, bool tap)
 {
 	if (keyToRelease[index] == CALIBRATE)
 	{
-		if (!tap || !toggleContinuous) 
+		if (!tap || !toggleContinuous)
 		{
 			JslPauseContinuousCalibration(intHandle);
 			toggleContinuous = false; // if we've held the calibration button, we're disabling continuous calibration
 			printf("Gyro calibration set\n");
 		}
 	}
-	else if (keyToRelease[index] == GYRO_INV_X || keyToRelease[index] == GYRO_ON_BIND || keyToRelease[index] == GYRO_OFF_BIND)
+	else if (keyToRelease[index] == GYRO_INV_X || keyToRelease[index] == GYRO_INV_Y || keyToRelease[index] == GYRO_INVERT || keyToRelease[index] == GYRO_ON_BIND || keyToRelease[index] == GYRO_OFF_BIND)
 	{
-		gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(), 
+		gyroActionQueue.erase(std::find_if(gyroActionQueue.begin(), gyroActionQueue.end(),
 			[index](auto pair)
 			{
 				return pair.first == index;
@@ -455,6 +455,7 @@ static int keyToBitOffset(WORD index) {
 	case MAPPING_R3:
 		return JSOFFSET_RCLICK;
 	}
+	return MAPPING_ERROR;
 }
 
 bool IsPressed(const JOY_SHOCK_STATE& state, int mappingIndex)
@@ -805,7 +806,7 @@ static void strtrim(char* str) {
 	char* buffer = str;
 	while (*str && *str++ == ' ') ++start;
 	while (*str++); // move to end of string
-	int end = str - buffer - 1;
+	auto end = str - buffer - 1;
 	while (end > 0 && buffer[end - 1] == ' ') --end; // backup over trailing spaces
 	buffer[end] = 0; // remove trailing spaces
 	if (end <= start || start == 0) return; // exit if no leading spaces or string is now empty
@@ -2068,6 +2069,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		break;
 	}
 	float gyro_x_sign_to_use = gyro_x_sign;
+	float gyro_y_sign_to_use = gyro_y_sign;
 
 	// Apply gyro modifiers in the queue from oldest to newest (thus giving priority to most recent)
 	for (auto pair : jc->gyroActionQueue)
@@ -2075,7 +2077,13 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		// TODO: logic optimization
 		if (pair.second == GYRO_ON_BIND) blockGyro = false;
 		else if (pair.second == GYRO_OFF_BIND) blockGyro = true;
-		else if (pair.second == GYRO_INV_X) gyro_x_sign_to_use = -1 * gyro_x_sign; // Intentionally don't support multiple inversions
+		else if (pair.second == GYRO_INV_X) gyro_x_sign_to_use *= -1; // Intentionally don't support multiple inversions
+		else if (pair.second == GYRO_INV_Y) gyro_y_sign_to_use *= -1;
+		else if (pair.second == GYRO_INVERT)
+		{
+			gyro_x_sign_to_use *= -1;
+			gyro_y_sign_to_use *= -1;
+		}
 	}
 
 	if (blockGyro) {
@@ -2088,7 +2096,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	{
 		//printf("GX: %0.4f GY: %0.4f GZ: %0.4f\n", imuState.gyroX, imuState.gyroY, imuState.gyroZ);
 		float mouseCalibration = real_world_calibration / os_mouse_speed / in_game_sens;
-		shapedSensitivityMoveMouse(gyroX * gyro_x_sign_to_use, gyroY * gyro_y_sign, min_gyro_sens, max_gyro_sens, min_gyro_threshold, max_gyro_threshold, deltaTime, camSpeedX * aim_x_sign, -camSpeedY * aim_y_sign, mouseCalibration);
+		shapedSensitivityMoveMouse(gyroX * gyro_x_sign_to_use, gyroY * gyro_y_sign_to_use, min_gyro_sens, max_gyro_sens, min_gyro_threshold, max_gyro_threshold, deltaTime, camSpeedX * aim_x_sign, -camSpeedY * aim_y_sign, mouseCalibration);
 	}
 }
 

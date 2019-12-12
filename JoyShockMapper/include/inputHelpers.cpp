@@ -11,6 +11,8 @@
 #define NO_HOLD_MAPPED 0x07
 #define CALIBRATE 0x0A
 #define GYRO_INV_X 0x0B
+#define GYRO_INV_Y 0x0C
+#define GYRO_INVERT 0x0D
 #define GYRO_OFF_BIND 0x0E // Not to be confused with settings GYRO_ON and GYRO_OFF
 #define GYRO_ON_BIND 0x0F  // Those here are bindings
 
@@ -69,7 +71,7 @@ void initConsole() {
 /// Yes, this looks slow. But it's only there to help set up faster mappings
 WORD nameToKey(std::string& name) {
 	// https://msdn.microsoft.com/en-us/library/dd375731%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
-	int length = name.length();
+	auto length = name.length();
 	if (length == 1) {
 		// direct mapping to a number or character key
 		char character = name.at(0);
@@ -234,6 +236,12 @@ WORD nameToKey(std::string& name) {
 	if (name.compare("GYRO_INV_X") == 0) {
 		return GYRO_INV_X;
 	}
+	if (name.compare("GYRO_INV_Y") == 0) {
+		return GYRO_INV_Y;
+	}
+	if (name.compare("GYRO_INVERT") == 0) {
+		return GYRO_INVERT;
+	}
 	if (name.compare("GYRO_ON") == 0) {
 		return GYRO_ON_BIND;
 	}
@@ -352,7 +360,7 @@ std::tuple<std::string, std::string> GetActiveWindowName() {
 	if (activeWindow) {
 		std::string module(256, '\0');
 		std::string title(256, '\0');
-		GetWindowTextA(activeWindow, &title[0], title.size()); //note: C++11 only
+		GetWindowTextA(activeWindow, &title[0], (int)title.size()); //note: C++11 only
 		title.resize(strlen(title.c_str()));
 		DWORD pid;
 		// https://stackoverflow.com/questions/14745320/get-active-processname-in-vc

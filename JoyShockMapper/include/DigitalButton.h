@@ -1,6 +1,8 @@
 #pragma once
 #include "pocket_fsm.h"
 #include <chrono>
+#include <vector>
+#include <unordered_map>
 
 #define MAPPING_SIZE 30 // BAD
 #define GYRO_OFF_BIND 0x0E
@@ -13,6 +15,8 @@ public:
 	std::chrono::steady_clock::time_point press_times[MAPPING_SIZE];
 	std::chrono::steady_clock::time_point time_now;
 	uint16_t keyToRelease[MAPPING_SIZE]; // At key press, remember what to release
+
+	virtual DigitalButton *GetButton(int index) = 0;
 
 	virtual uint16_t GetHoldMapping(int index) = 0;
 
@@ -31,8 +35,6 @@ public:
 	virtual const ComboMap* GetMatchingSimMap(int index) = 0;
 
 	virtual inline float GetPressDurationMS(int index) = 0;
-
-	virtual DigitalButton *GetButton(int index) = 0;
 };
 
 struct PressEvent : public pocket_fsm::Event {};

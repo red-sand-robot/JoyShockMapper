@@ -156,19 +156,19 @@ public:
 
 	WORD GetPressMapping(int index);
 
-	WORD GetHoldMapping(int index);
+	WORD GetHoldMapping(int index) override;
 
 	void ApplyBtnPress(int index, bool tap = false) override;
 
-	void ApplyBtnHold(int index);
+	void ApplyBtnHold(int index) override;
 
 	void ApplyBtnRelease(int index, bool tap = false) override;
 
-	void ApplyBtnPress(const ComboMap &simPress, int index, bool tap = false);
+	void ApplyBtnPress(const ComboMap &simPress, int index, bool tap = false) override;
 
-	void ApplyBtnHold(const ComboMap &simPress, int index);
+	void ApplyBtnHold(const ComboMap &simPress, int index) override;
 
-	void ApplyBtnRelease(const ComboMap &simPress, int index, bool tap = false);
+	void ApplyBtnRelease(const ComboMap &simPress, int index, bool tap = false) override;
 
 	// Pretty wrapper
 	inline float GetPressDurationMS(int index) override
