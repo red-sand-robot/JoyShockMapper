@@ -88,11 +88,21 @@ target_include_directories (
     "${PROJECT_BINARY_DIR}/${PROJECT_NAME}/include"
 )
 
-CPMAddPackage (
-    NAME JoyShockLibrary
-    GITHUB_REPOSITORY JibbSmart/JoyShockLibrary
-    VERSION 2.1.0
-)
+#CPMAddPackage (
+#    NAME JoyShockLibrary
+#    GITHUB_REPOSITORY JibbSmart/JoyShockLibrary
+#    VERSION 2.1.0
+#)
+
+#find_package( JoyShockLibrary REQUIRED
+#	PATHS "../../JoyShockLibrary"
+#)
+
+#add_library (JoyShockLibrary STATIC IMPORTED GLOBAL)
+
+set(BUILD_SHARED_LIBS TRUE)
+
+add_subdirectory("../../JoyShockLibrary" "../../JoyShockLibrary/build")
 
 target_link_libraries (
     ${BINARY_NAME} PRIVATE
