@@ -35,11 +35,14 @@ JoyShockMapper works on Windows and uses JoyShockLibrary to read inputs from con
     * **[Calculating the real world calibration in a 3D game](#52-calculating-the-real-world-calibration-in-a-3d-game)**
     * **[Calculating the real world calibration in a 2D game](#53-calculating-the-real-world-calibration-in-a-2d-game)**
   * **[Modeshifts](#6-modeshifts)**
-  * **[Miscellaneous Commands](#7-miscellaneous-commands)**
-  * **[Configuration Files](#configuration-files)**
-    * **[OnStartup.txt](#1-onstartuptxt)**
-    * **[OnReset.txt](#2-onresettxt)**
-    * **[Autoload](#3-autoload)**
+  * **[Touchpad](#7-touchpad)**
+    * **[Touch Sticks](#71-touch-stick)**
+  * **[Miscellaneous Commands](#8-miscellaneous-commands)**
+* **[Configuration Files](#configuration-files)**
+  * **[OnStartup.txt](#1-onstartuptxt)**
+  * **[OnReset.txt](#2-onresettxt)**
+  * **[Autoload feature](#3-autoload-feature)**
+* **[Known and Perceived Issues](#known-and-perceived-issues)**
 * **[Troubleshooting](#troubleshooting)**
 * **[Known and Perceived Issues](#known-and-perceived-issues)**
 * **[Credits](#credits)**
@@ -142,7 +145,8 @@ Commands can *mostly* be split into 8 categories:
 4. **[Gyro Mouse Inputs](#4-gyro-mouse-inputs)**. Controlling the mouse with gyro generally provides far more precision than controlling it with a stick. Think of a gyro as a mouse on an invisible, frictionless mousepad. The mousepad extends however far you're comfortable rotating the controller. For games where you control the camera directly, stick mouse inputs provide convenient ways to complete big turns with little precision, while gyro mouse inputs allow you to make more precise, quick movements within a relatively limited range.
 5. **[Real World Calibration](#5-real-world-calibration)**. This calibration value makes it possible for *flick stick* to work correctly, for the gyro and aim stick settings to have meaningful real-life values, and for players to share the same settings between different games.
 6. **[Modeshifts](#6-modeshifts)**. The controller configuration can dynamically change depending on the current button presses, in a way akin to chorded presses. This is handy to handle weapon wheels for example. These are called modeshifts to echo the Steam Input naming convention.
-8. **[Miscellaneous Commands](#7-miscellaneous-commands)**. These don't fit in the above categories, but are nevertheless useful. They typically are related to JoyShockMapper itself rather than the controller configuration.
+7. **[Touchpad](#7-touchpad)**. The Dualsense and DS4 touchpads can be configured to perform many different functionalities, such as a button grid, cursor and gesture or even joystick mode.
+8. **[Miscellaneous Commands](#8-miscellaneous-commands)**. These don't fit in the above categories, but are nevertheless useful. They typically are related to JoyShockMapper itself rather than the controller configuration.
 
 So let's dig into the available commands.
 
@@ -192,6 +196,8 @@ RRING: Right ring binding, either inner or outer.
 MUP, MDOWN, MLEFT, MRIGHT: Motion stick tilted forward, back, left or right
 MRING: Motion ring binding, either inner or outer.
 LEAN_LEFT, LEAN_RIGHT: Tilt the controller to the left or right
+TOUCH : The DS4 touchpad is being touched
+T1-T25: Up to 25 configurable touch buttons layed out in a grid
 ```
 
 These can all be mapped to the following keyboard and mouse inputs:
@@ -407,13 +413,16 @@ Analog triggers report a value between 0% and 100% representing how far you are 
 TRIGGER_THRESHOLD = 0.5   #Send Trigger values at half press
 ```
 
-The same threashold value is used for both triggers. A value of 1.0 or higher makes the binding impossible to reach, and a value below 0 makes it always pressed.
+The same threashold value is used for both triggers. A value of 1.0 or higher makes the binding impossible to reach.
+
+Hair trigger is also implemented: to enable it, assign a value of -1 as the trigger threshold. When hair trigger is used, the binding is enabled when the trigger is being pressed and held, and released when the trigger is being released. This allows quick tap shooting by pulsing the trigger.
 
 JoyShockMapper can assign different bindings to the full pull of the trigger, allowing you to have up to 4 bindings on each trigger when considering the hold bindings. The way the trigger handles these bindings is set with the variables ```ZR_MODE``` and ```ZL_MODE```, for R2 and L2 triggers. Once set, you can assign keys to ```ZRF``` and ```ZLF``` to make use of the R2 and L2 full pull bindings respectively. In this context, ```ZL``` and ```ZR``` are called the soft pull binding because they activate before the full pull binding do at 100%. Here is the list of all possible trigger modes.
 
 ```
 NO_FULL (default): Ignore full pull binding. This mode is enforced on controllers who have digital triggers like the Pro Controller.
 NO_SKIP: Never skip the soft pull binding. Full pull binding activates anytime the trigger is fully pressed.
+NO_SKIP_EXCLUSIVE: Never skip the soft pull binding. When Full pull binding is active, the soft pull binding isn't.
 MUST_SKIP: Only send full pull binding on a quick full press of the trigger, ignoring soft pull binding.
 MAY_SKIP: Combines NO_SKIP and MUST_SKIP: Soft binding may be skipped on a quick full press, and full pull can be activated on top of soft pull binding.
 MUST_SKIP_R: Responsive version of MUST_SKIP. See below.
@@ -451,6 +460,7 @@ ROTATE_ONLY: flick stick rotation without the initial flick
 MOUSE_RING: stick angle sets the mouse position on a circle directly around the center of the screen
 MOUSE_AREA: stick position sets the cursor in a circular area around the neutral position
 NO_MOUSE: don't affect the mouse, use button mappings (default)
+SCROLL_WHEEL: enable left and right bindings by rotating the stick counter-clockwise or clockwise.
 ```
 
 The mode for the left and right stick are set like so:
@@ -530,6 +540,8 @@ When using the ```MOUSE_AREA``` stick mode, the stick value directly sets the mo
 #### 3.4 Digital modes
 
 When using stick mode ```NO_MOUSE```, JSM will use the stick's UP DOWN LEFT and RIGHT bindings in a cross gate layout. There is a small square deadzone to ignore very small stick moves.
+
+Finally, ```SCROLL_WHEEL``` while turn the stick into a rotating scroll wheel. Left bindings are pulsed by rotating counter-clockwise and right bindings are pulsed by rotating clockwise. The setting SCROLL_SENS allows you to change the amount of degrees you need to perform to trigger a pulse. Unlike other sensitivity parameters, a higher value is less sensitive.
 
 ```
 # Left stick moves
@@ -720,8 +732,71 @@ To remove an existing modeshift you have to assign ```NONE``` to the chord.
 ```
 ZLF,GYRO_SENS = NONE
 ```
+### 7. Touchpad
 
-### 7. Miscellaneous Commands
+The touchpad always offers the ```TOUCH``` button binding. It will be pressed if there is any touch point active. This binding will overlap with other touch buttons and can be useful to disable gyro for example, or bring up the game map.
+
+The most important setting for the touchpad is simply ```TOUCHPAD_MODE``` which will determine the primary functionality of the touchpad. Here are th possible values:
+* **GRID_AND_STICK** - Grid And Stick will create a button grid of equally sized buttons on the touch pad. You have to also assign to ```GRID_SIZE``` the number of columns and rows of the grid : the product of the two cannot be greater than 25 or lesser than 1. Touch buttons T1-TN will then become available for assignment: they are layed out in order from left to right, from top to bottom. There are also two touchsticks available. See below.
+* **MOUSE** - Mouse mode turns the touchpad into a familiar laptop touchpad. Sensitivity can be adjusted via ```TOUCHPAD_SENS```. Using two fingers you can rotate to trigger TLEFT and TRIGHT bindings like a scroll wheel ; you can also pinch to trigger TUP and TDOWN and use the vertical value of ```SCROLL_SENS```. More gestures will be added to this mode in a future release such as double touch. Taps and double taps are already usable via ```TOUCH```.
+
+Here's an example of grid usage to add some more buttons that otherwise would not be worth putting on a controller
+```
+TOUCHPAD_MODE = GRID_AND_STICK
+GRID_SIZE = 2 1   # split the pad in two buttons, left and right
+GYRO_OFF = TOUCH  # disable the gyro when I touch either button
+
+# Bind on clicks
+CAPTURE = NONE   # Chorded with touch buttons
+T1,CAPTURE = F1  # View Help
+T2,CAPTURE = F10 # Quick Save
+```
+
+Or a typical touchapd in cursor mode
+```
+TOUCHPAD_MODE = MOUSE
+TOUCH = LMOUSE'	           # Quick tap means select
+TOUCH,TOUCH = RMOUSE       # Double tap for right click
+CAPTURE = ^LMOUSE          # Or click pad to toggle click (dragging)
+TUP = CONTROL\ SCROLLDOWN\ # Zoom in when stretching outward
+TDOWN = CONTROL\ SCROLLUP\ # Zoom out when pinching inward
+TRIGHT = SCROLLDOWN        # Rotate clockwise to scroll down
+TLEFT = SCROLLUP           # Rotate counter-clockwise to scroll up
+TOUCH,SCROLL_SENS = 15 10  # Rotate 15 deg and travel 10 units
+```
+
+#### 7.1 Touch Sticks
+
+A touch stick is a virtual joystick mapped unto the touchpad. As such, a touch stick has and uses all of the familiar binding names and settings, plus one new setting.
+```
+TUP, TDOWN, TLEFT, TRIGHT, TRING : The touchstick four directions when in NO_MOUSE mode.
+TOUCH_STICK_MODE: Set the touchstick to any  stick mode (AIM, FLICK_ONLY, MOUSE_AREA, etc...)
+TOUCH_DEADZONE_INNER: Sets how large the area with no output is. There is no TOUCH_DEADZONE_OUTER, as it is replaced with TOUCH_STICK_RADIUS. See below.
+TOUCH_RING_MODE: Sets what ring should be used for TRING, either INNER or OUTER.
+TOUCH_STICK_RADIUS: Sets the size of the stick, or in other words, the amount of touchpad units to travel to the edge of the stick.
+```
+
+The touchstick center is always the point of contact. As such, one can easily configure gestures by setting a very large touch stick radius and binding values to the 4 directions.
+
+The touch stick differs from other input methods in one particular way. The four stick directions cannot be used as a chord for other buttons, but you can chord the four direction with the grid buttons. As such, you can control two touch sticks at the same time on either side of the touch pad with each having different bindings. The example below showcases the numbers 1 to 4 bound to swipe gestures on the left half of the pad, and 5 to 8 bound to swipe gestures on the right half of the pad.
+
+```
+TOUCH_STICK_MODE = GRID_AND_STICK
+GRID_SIZE = 2 1 # Left and Right
+TOUCH_STICK_RADIUS = 800 # Use a larger value to use stick as swipe gestures
+
+T1,TLEFT = 1
+T1,TUP = 2
+T1,TRIGHT = 3
+T1,TDOWN = 4
+
+T2,TLEFT = 5
+T2,TUP = 6
+T2,TRIGHT = 7
+T2,TDOWN = 8
+```
+
+### 8. Miscellaneous Commands
 There are a few other useful commands that don't fall under the above categories:
 
 * **RESET\_MAPPINGS** - This will reset all JoyShockMapper's settings to their default values. This way you don't have to manually unset button mappings or other settings when making a big change. It can be useful to always start your configuration files with the RESET\_MAPPINGS command. The only exceptions to this are the calibration state and AUTOLOAD.
@@ -730,7 +805,9 @@ There are a few other useful commands that don't fall under the above categories
 * **JOYCON\_GYRO\_MASK** (default IGNORE\_LEFT) - Most games that use gyro controls on Switch ignore the left JoyCon's gyro to avoid confusing behaviour when the JoyCons are held separately while playing. This is the default behaviour in JoyShockMapper. But you can also choose to IGNORE\_RIGHT, IGNORE\_BOTH, or USE\_BOTH.
 * **JOYCON\_MOTION\_MASK** (default IGNORE\_RIGHT) - To avoid confusing behaviour when the JoyCons are held separately while playing, you can have one JoyCon ignored for MOTION\_STICK related functions. Since we ignore the left JoyCon by default for gyro, we ignore the right JoyCon by default for motion stick. But you can also choose to IGNORE\_RIGHT, IGNORE\_BOTH, or USE\_BOTH.
 * **SLEEP** - Cause the program to sleep (or wait) for a given number of seconds. The given value must be greater than 0 and less than or equal to 10. Or, omit the value and it will sleep for one second. This command may help automate calibration.
-```WHITELIST_ADD``` and ```RECONNECT_CONTROLLERS``` in the startup file.
+* **LIGHT_BAR** - Set the DS4 light bar to the assigned color. You can assign either a 6 hex digit code precedded by 'x', three decimal values for red, green and blue between 0 and 255, or simply a [common color name](https://www.rapidtables.com/web/color/RGB_Color.html#color-table) in capitals and underscore.
+* **HIDE_MINIMIZED** - Some users like having JSM hidden in the notification area. You can hide JSM when minimized by setting this to ON. OFF is the default value.
+* ***onstartup.txt*** - This is not a command. But if a file called '*onstartup.txt*' is found in the current working directory on startup, its contents will be loaded and executed right away. If you prefer that AutoLoad is disabled, put ```AUTOLOAD = OFF``` in here to have it disabled at startup. If you use HIDGuardian / HIDCerberus and always want to whitelist JSM and then reconnect controllers, just put ```WHITELIST_ADD``` and ```RECONNECT_CONTROLLERS``` in the startup file.
 * **README** will lead you to this document.
 * **HELP** Will display a list of all commands, all commands containing a given string, or the specific help for all the exact command names given to it.
 
