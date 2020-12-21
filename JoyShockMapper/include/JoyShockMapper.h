@@ -45,10 +45,10 @@ enum class ButtonID
 	DOWN,		
 	LEFT,		
 	RIGHT,		
+	CAPTURE,	// The order UP,DOWN,LEFT,RIGHT,CAPTURE matters for setting SC_STICK_LOCATION
 	L,			
 	ZL,			
 	MINUS,		
-	CAPTURE,	
 	E,			
 	S,			
 	N,			
@@ -59,12 +59,12 @@ enum class ButtonID
 	HOME,		
 	SL,			
 	SR,			
-	L3,			
 	R3,			
-	LUP,		
+	LUP,		// The order LUP,LDOWN,LLEFT,LRIGHT,L3 matters for setting SC_STICK_LOCATION
 	LDOWN,		
 	LLEFT,		
 	LRIGHT,		
+	L3,			
 	LRING,		
 	RUP,		
 	RDOWN,		
@@ -203,6 +203,7 @@ enum class SettingID
 	TOUCHPAD_SENS,
 	LIGHT_BAR,
 	SCROLL_SENS,
+	SC_STICK_LOCATION,
 };
 
 // constexpr are like #define but with respect to typeness

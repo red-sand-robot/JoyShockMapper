@@ -91,6 +91,7 @@ JSMSetting<RingMode> touch_ring_mode = JSMSetting<RingMode>(SettingID::TOUCH_RIN
 JSMSetting<FloatXY> touchpad_sens = JSMSetting<FloatXY>(SettingID::TOUCHPAD_SENS, { 1.f, 1.f });
 JSMVariable<Switch> hide_minimized = JSMVariable<Switch>(Switch::OFF);
 JSMSetting<FloatXY> scroll_sens = JSMSetting<FloatXY>(SettingID::SCROLL_SENS, { 30.f, 30.f });
+JSMSetting<AxisMode> sc_stick_location = JSMSetting<AxisMode>(SettingID::SC_STICK_LOCATION, AxisMode::STANDARD);
 
 mutex loading_lock;
 
@@ -1203,6 +1204,9 @@ public:
 			case SettingID::TOUCH_RING_MODE:
 				opt = GetOptionalSetting<E>(touch_stick_mode, *activeChord);
 				break;
+			case SettingID::SC_STICK_LOCATION:
+				opt = GetOptionalSetting<E>(sc_stick_location, *activeChord);
+				break;
 			}
 			if (opt) return *opt;
 		}
@@ -1488,9 +1492,22 @@ public:
 
 	DigitalButton *GetButton(ButtonID index, int touchpadIndex = -1)
 	{
+		if (JslGetControllerType(intHandle) == JS_TYPE_STEAM_CONTROLLER && getSetting<AxisMode>(SettingID::SC_STICK_LOCATION) == AxisMode::INVERTED)
+		{
+			int diff = int(ButtonID::LUP) - int(ButtonID::UP); // This is where the order matters, but not the value.
+			if (index >= ButtonID::UP && index <= ButtonID::CAPTURE)
+			{
+				return &buttons[int(index) + diff];
+			}
+			else if(index >= ButtonID::LUP && index <= ButtonID::L3)
+			{
+				return &buttons[int(index) - diff];
+			}
+			// else use regular mapping
+		}
 		DigitalButton *button = index < ButtonID::SIZE ? &buttons[int(index)] :
-		touchpadIndex >= 0 && touchpadIndex < touchpads.size() ? &touchpads[touchpadIndex].buttons[int(index) - FIRST_TOUCH_BUTTON] :
-		index >= ButtonID::T1 ? &gridButtons[int(index) - int(ButtonID::T1)] : throw exception("What index is this?");
+			touchpadIndex >= 0 && touchpadIndex < touchpads.size() ? &touchpads[touchpadIndex].buttons[int(index) - FIRST_TOUCH_BUTTON] :
+			index >= ButtonID::T1 ? &gridButtons[int(index) - int(ButtonID::T1)] : throw exception("What index is this?");
 		return button;
 	}
 
@@ -2375,45 +2392,49 @@ void TouchStick::handleTouchStickChange(JoyShock *js, bool down, short movX, sho
 }
 
 
-void DisplayTouchInfo(int id, optional<FloatXY> xy, optional<FloatXY> prevXY = nullopt)
+void DisplayTouchInfo(optional<FloatXY> xy, optional<FloatXY> prevXY = nullopt)
 {
 	if (xy)
 	{
 		if (!prevXY)
 		{
-			cout << "New touch " << id << " at " << *xy << endl;
+			cout << "New touch at " << *xy << endl;
 		}
 		else if (fabsf(xy->x() - prevXY->x()) > FLT_EPSILON || fabsf(xy->y() - prevXY->y()) > FLT_EPSILON)
 		{
-			cout << "Touch " << id << " moved to " << *xy << endl;
+			cout << "Touch moved to " << *xy << endl;
 		}
 	}
 	else if (prevXY)
 	{
-		cout << "Touch " << id << " has been released" << endl;
+		cout << "Touch has been released" << endl;
 	}
 }
 
 void TouchCallback(int jcHandle, TOUCH_POINT point0, TOUCH_POINT point1, float delta_time)
 {
-	//if (current.t0Down || previous.t0Down)
-	//{
-	//	DisplayTouchInfo(current.t0Down ? current.t0Id : previous.t0Id, 
-	//		current.t0Down ? optional<FloatXY>({ current.t0X, current.t0Y }) : nullopt,
-	//		previous.t0Down ? optional<FloatXY>({ previous.t0X, previous.t0Y }) : nullopt);
-	//}
-
-	//if (current.t1Down || previous.t1Down)
-	//{
-	//	DisplayTouchInfo(current.t1Down ? current.t1Id : previous.t1Id,
-	//		current.t1Down ? optional<FloatXY>({ current.t1X, current.t1Y }) : nullopt,
-	//		previous.t1Down ? optional<FloatXY>({ previous.t1X, previous.t1Y }) : nullopt);
-	//}
-
 	JoyShock *js = getJoyShockFromHandle(jcHandle);
 	if (!js)
 		return;
 	js->callback_lock.lock();
+
+	//if (point0.isDown() || js->prevTouchPoints[0].isDown())
+	//{
+	//	DisplayTouchInfo(
+	//		point0.isDown() ? optional<FloatXY>({ point0.posX, point0.posY }) : nullopt,
+	//		js->prevTouchPoints[0].isDown() ? optional<FloatXY>({ js->prevTouchPoints[0].posX, js->prevTouchPoints[0].posY }) : nullopt);
+	//}
+
+	//if (point1.isDown() || js->prevTouchPoints[1].isDown())
+	//{
+	//	DisplayTouchInfo(
+	//		point1.isDown() ? optional<FloatXY>({ point1.posX, point1.posY }) : nullopt,
+	//		js->prevTouchPoints[1].isDown() ? optional<FloatXY>({ js->prevTouchPoints[1].posX, js->prevTouchPoints[1].posY }) : nullopt);
+	//}
+
+	//js->prevTouchPoints = { point0, point1 };
+	//js->callback_lock.unlock();
+	//return;
 
 	auto mode = js->getSetting<TouchpadMode>(SettingID::TOUCHPAD_MODE);
 	js->GetButton(ButtonID::TOUCH)->handleButtonChange(point0.isDown() || point1.isDown(), js->time_now, js->getSetting(SettingID::TURBO_PERIOD), js->getSetting(SettingID::HOLD_PRESS_TIME));
@@ -3576,6 +3597,8 @@ int main(int argc, char *argv[]) {
 		->SetHelp("JSM will be hidden in the notification area when minimized if this setting is ON. Otherwise it stays in the taskbar."));
 	commandRegistry.Add((new JSMAssignment<FloatXY>(scroll_sens))
 		->SetHelp("Scrolling sensitivity for sticks and touchpad in degrees. Second value is used for touchpad pinch-strech gestures."));
+	commandRegistry.Add((new JSMAssignment<AxisMode>(sc_stick_location))
+		->SetHelp("Invert the stick location to consider the left pad as the left stick, the click as L3 and the physical stick to be the dpad with CAPTURE on click."));
 
 	bool quit = false;
 	commandRegistry.Add((new JSMMacro("QUIT"))
