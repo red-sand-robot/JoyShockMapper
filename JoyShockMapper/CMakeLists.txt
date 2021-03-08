@@ -186,3 +186,5 @@ target_link_libraries (
     Platform::Dependencies
     magic_enum
 )
+
+add_subdirectory(unittest)
