@@ -1,6 +1,5 @@
 #pragma once
 
-#include "JSMVersion.h"
 #include "magic_enum.hpp"
 
 #include <map>
@@ -630,3 +629,5 @@ istream &operator>>(istream &in, PathString &fxy);
 #define COUT ColorStream<&std::cout, FOREGROUND_GREEN>()
 #define COUT_INFO ColorStream<&cout, FOREGROUND_BLUE | FOREGROUND_INTENSITY>()
 #define COUT_WARN ColorStream<&cout, FOREGROUND_YELLOW | FOREGROUND_INTENSITY>()
+
+bool do_RECONNECT_CONTROLLERS(in_string arguments);

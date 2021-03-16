@@ -31,6 +31,7 @@ add_executable (
     include/ColorCodes.h
     include/GamepadMotion.hpp
 	include/Gamepad.h
+	include/JslWrapper.h
 )
 
 if (WINDOWS)
@@ -47,7 +48,13 @@ if (WINDOWS)
     if(SDL)
         target_sources (
             ${BINARY_NAME} PRIVATE
-            src/SDLWrapper.cpp              include/JoyShockLibrary.h
+            src/SDLWrapper.cpp
+		)
+		add_definitions(-DSDL2)
+	else()
+	        target_sources (
+            ${BINARY_NAME} PRIVATE
+            src/JslWrapper.cpp
 		)
     endif()
 
@@ -161,7 +168,7 @@ else()
 	CPMAddPackage (
 		NAME JoyShockLibrary
 		GITHUB_REPOSITORY JibbSmart/JoyShockLibrary
-		VERSION 2.1.0
+		GIT_TAG master
 	)
 
 	target_link_libraries (

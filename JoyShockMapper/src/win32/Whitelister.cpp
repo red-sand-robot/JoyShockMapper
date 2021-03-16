@@ -101,48 +101,72 @@ bool Whitelister::ShowHIDCerberus()
 	//return false;
 }
 
-bool Whitelister::Add(string *optErrMsg)
+class WhitelisterImpl : public Whitelister
 {
-	if (!_whitelisted && IsHIDCerberusRunning())
+public:
+	WhitelisterImpl(bool add = false)
+	  : Whitelister(add)
 	{
-		UINT64 pid = GetCurrentProcessId();
-		stringstream ss;
-		ss << R"(http://localhost/api/v1/hidguardian/whitelist/add/)" << pid;
-		auto result = SendToHIDGuardian(ss.str());
-
-		if (result.compare(R"(["OK"])") == 0)
+		if (add)
 		{
-			_whitelisted = true;
-			return true;
+			Add();
 		}
-
-		if (optErrMsg)
-			*optErrMsg = result;
 	}
-	return false;
-}
 
-bool Whitelister::Remove(string *optErrMsg)
-{
-	if (_whitelisted && IsHIDCerberusRunning())
+	~WhitelisterImpl()
 	{
-		UINT64 pid = GetCurrentProcessId();
-		stringstream ss;
-		ss << R"(http://localhost/api/v1/hidguardian/whitelist/remove/)" << pid;
-		auto result = SendToHIDGuardian(ss.str());
-		if (result.compare(R"(["OK"])") == 0)
-		{
-			_whitelisted = false;
-			return true;
-		}
-
-		if (optErrMsg)
-			*optErrMsg = result;
+		Remove();
 	}
-	return false;
-}
 
-string Whitelister::SendToHIDGuardian(string command)
+	virtual bool Add(string *optErrMsg = nullptr) override
+	{
+		if (!_whitelisted && IsHIDCerberusRunning())
+		{
+			UINT64 pid = GetCurrentProcessId();
+			stringstream ss;
+			ss << R"(http://localhost/api/v1/hidguardian/whitelist/add/)" << pid;
+			auto result = SendToHIDGuardian(ss.str());
+
+			if (result.compare(R"(["OK"])") == 0)
+			{
+				_whitelisted = true;
+				return true;
+			}
+
+			if (optErrMsg)
+				*optErrMsg = result;
+		}
+		return false;
+	}
+
+	virtual bool Remove(string *optErrMsg = nullptr) override
+	{
+		if (_whitelisted && IsHIDCerberusRunning())
+		{
+			UINT64 pid = GetCurrentProcessId();
+			stringstream ss;
+			ss << R"(http://localhost/api/v1/hidguardian/whitelist/remove/)" << pid;
+			auto result = SendToHIDGuardian(ss.str());
+			if (result.compare(R"(["OK"])") == 0)
+			{
+				_whitelisted = false;
+				return true;
+			}
+
+			if (optErrMsg)
+				*optErrMsg = result;
+		}
+		return false;
+	}
+
+private:
+	string SendToHIDGuardian(string command);
+	string readUrl2(string &szUrl, long &bytesReturnedOut, string *headerOut);
+	void mParseUrl(string mUrl, string &serverName, string &filepath, string &filename);
+	int getHeaderLength(char *content);
+};
+
+string WhitelisterImpl::SendToHIDGuardian(string command)
 {
 	long fileSize = -1;
 	WSADATA wsaData;
@@ -157,7 +181,7 @@ string Whitelister::SendToHIDGuardian(string command)
 	return memBuffer;
 }
 
-string Whitelister::readUrl2(string &szUrl, long &bytesReturnedOut, string *headerOut)
+string WhitelisterImpl::readUrl2(string &szUrl, long &bytesReturnedOut, string *headerOut)
 {
 	constexpr size_t bufSize = 512;
 	string readBuffer(bufSize, '\0');
@@ -207,7 +231,7 @@ string Whitelister::readUrl2(string &szUrl, long &bytesReturnedOut, string *head
 	return result;
 }
 
-void Whitelister::mParseUrl(string url, string &serverName, string &filepath, string &filename)
+void WhitelisterImpl::mParseUrl(string url, string &serverName, string &filepath, string &filename)
 {
 	string::size_type n;
 
@@ -234,7 +258,7 @@ void Whitelister::mParseUrl(string url, string &serverName, string &filepath, st
 	}
 }
 
-int Whitelister::getHeaderLength(char *content)
+int WhitelisterImpl::getHeaderLength(char *content)
 {
 	const char *srchStr1 = "\r\n\r\n", *srchStr2 = "\n\r\n\r";
 	char *findPos;
@@ -257,4 +281,9 @@ int Whitelister::getHeaderLength(char *content)
 		}
 	}
 	return ofset;
+}
+
+Whitelister *Whitelister::getNew(bool add)
+{
+	return new WhitelisterImpl(add);
 }

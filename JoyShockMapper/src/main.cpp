@@ -1,5 +1,6 @@
 #include "JoyShockMapper.h"
-#include "JoyShockLibrary.h"
+#include "JslWrapper.h"
+#include "JSMVersion.h"
 #include "GamepadMotion.hpp"
 #include "InputHelpers.h"
 #include "Whitelister.h"
@@ -19,6 +20,7 @@
 const KeyCode KeyCode::EMPTY = KeyCode();
 const Mapping Mapping::NO_MAPPING = Mapping("NONE");
 function<bool(in_string)> Mapping::_isCommandValid = function<bool(in_string)>();
+unique_ptr<JslWrapper> jsl(JslWrapper::getNew());
 
 class JoyShock;
 void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE lastState, IMU_STATE imuState, IMU_STATE lastImuState, float deltaTime);
@@ -99,7 +101,7 @@ unique_ptr<PollingThread> autoLoadThread;
 unique_ptr<PollingThread> minimizeThread;
 unique_ptr<TrayIcon> tray;
 bool devicesCalibrating = false;
-Whitelister whitelister(false);
+unique_ptr<Whitelister> whitelister(Whitelister::getNew(false));
 unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
 
 // This class holds all the logic related to a single digital button. It does not hold the mapping but only a reference
@@ -125,7 +127,7 @@ public:
 		unique_ptr<Gamepad> _vigemController;
 		function<DigitalButton *(ButtonID)> _getMatchingSimBtn;
 		mutex callback_lock; // Needs to be in the common struct for both joycons to use the same
-		function<void(int small, int big)> _rumble;
+		function<void(int small_rumble, int big_rumble)> _rumble;
 	};
 
 	static bool findQueueItem(pair<ButtonID, KeyCode> &pair, ButtonID btn)
@@ -1015,12 +1017,12 @@ public:
 		}
 		_light_bar = getSetting<Color>(SettingID::LIGHT_BAR);
 
-		platform_controller_type = JslGetControllerType(handle);
+		platform_controller_type = jsl->GetControllerType(handle);
 		btnCommon->_getMatchingSimBtn = bind(&JoyShock::GetMatchingSimBtn, this, placeholders::_1);
 		btnCommon->_rumble = bind(&JoyShock::Rumble, this, placeholders::_1, placeholders::_2);
 
-		buttons.reserve(MAPPING_SIZE);
-		for (int i = 0; i < MAPPING_SIZE; ++i)
+		buttons.reserve(mappings.size());
+		for (int i = 0; i < mappings.size(); ++i)
 		{
 			buttons.push_back(DigitalButton(btnCommon, ButtonID(i), uniqueHandle, &motion));
 		}
@@ -1029,7 +1031,7 @@ public:
 		{
 			virtual_controller = ControllerScheme::NONE;
 		}
-		JslSetLightColour(handle, _light_bar.raw);
+		jsl->SetLightColour(handle, _light_bar.raw);
 	}
 
 	~JoyShock()
@@ -1041,7 +1043,7 @@ public:
 		if (getSetting<Switch>(SettingID::RUMBLE) == Switch::ON)
 		{
 			COUT << "Rumbling at " << smallRumble << " and " << bigRumble << endl;
-			JslSetRumble(handle, smallRumble, bigRumble);
+			jsl->SetRumble(handle, smallRumble, bigRumble);
 		}
 	}
 
@@ -1076,10 +1078,10 @@ public:
 		{
 		case JS_TYPE_DS4:
 		case JS_TYPE_DS:
-			JslSetLightColour(handle, _light_bar.raw);
+			jsl->SetLightColour(handle, _light_bar.raw);
 			break;
 		default:
-			JslSetPlayerNumber(handle, indicator.led);
+			jsl->SetPlayerNumber(handle, indicator.led);
 			break;
 		}
 		Rumble(smallMotor, largeMotor);
@@ -1376,7 +1378,7 @@ public:
 		// POTENTIAL FLAW: The mapping you find may not necessarily be the one that got you in a
 		// Simultaneous state in the first place if there is a second SimPress going on where one
 		// of the buttons has a third SimMap with this one. I don't know if it's worth solving though...
-		for (int id = 0; id < MAPPING_SIZE; ++id)
+		for (int id = 0; id < mappings.size(); ++id)
 		{
 			auto simMap = mappings[int(index)].getSimMap(ButtonID(id));
 			if (simMap && index != simMap->first && buttons[int(simMap->first)]._btnState == buttons[int(index)]._btnState)
@@ -1823,15 +1825,15 @@ constexpr int PlayerNumber(size_t n)
 void connectDevices(bool mergeJoycons = true)
 {
 	handle_to_joyshock.clear();
-	int numConnected = JslConnectDevices();
+	int numConnected = jsl->ConnectDevices();
 	vector<int> deviceHandles(numConnected, 0);
 	if (numConnected > 0)
 	{
-		JslGetConnectedDeviceHandles(&deviceHandles[0], numConnected);
+		jsl->GetConnectedDeviceHandles(&deviceHandles[0], numConnected);
 
 		for (auto handle : deviceHandles)
 		{
-			auto type = JslGetControllerSplitType(handle);
+			auto type = jsl->GetControllerSplitType(handle);
 			auto otherJoyCon = find_if(handle_to_joyshock.begin(), handle_to_joyshock.end(),
 			  [type](auto &pair) {
 				  return type == JS_SPLIT_TYPE_LEFT && pair.second->controller_split_type == JS_SPLIT_TYPE_RIGHT ||
@@ -1907,9 +1909,9 @@ bool do_RECONNECT_CONTROLLERS(in_string arguments)
 	if (mergeJoycons || arguments.rfind("SPLIT", 0) == 0)
 	{
 		COUT << "Reconnecting controllers: " << arguments << endl;
-		JslDisconnectAndDisposeAll();
+		jsl->DisconnectAndDisposeAll();
 		connectDevices(mergeJoycons);
-		JslSetCallback(&joyShockPollCallback);
+		jsl->SetCallback(&joyShockPollCallback);
 		return true;
 	}
 	return false;
@@ -2067,22 +2069,28 @@ bool do_WHITELIST_SHOW()
 
 bool do_WHITELIST_ADD()
 {
-	whitelister.Add();
 	if (whitelister)
 	{
-		COUT << "JoyShockMapper was successfully whitelisted" << endl;
-	}
-	else
-	{
-		COUT << "Whitelisting failed!" << endl;
+		whitelister->Add();
+		if (*whitelister)
+		{
+			COUT << "JoyShockMapper was successfully whitelisted" << endl;
+		}
+		else
+		{
+			COUT << "Whitelisting failed!" << endl;
+		}
 	}
 	return true;
 }
 
 bool do_WHITELIST_REMOVE()
 {
-	whitelister.Remove();
-	COUT << "JoyShockMapper removed from whitelist" << endl;
+	if (whitelister)
+	{
+		whitelister->Remove();
+		COUT << "JoyShockMapper removed from whitelist" << endl;
+	}
 	return true;
 }
 
@@ -2413,7 +2421,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 
 	GamepadMotion &motion = jc->motion;
 
-	IMU_STATE imu = JslGetIMUState(jc->handle);
+	IMU_STATE imu = jsl->GetIMUState(jc->handle);
 
 	motion.ProcessMotion(imu.gyroX, imu.gyroY, imu.gyroZ, imu.accelX, imu.accelY, imu.accelZ, deltaTime);
 
@@ -2532,8 +2540,8 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		// let's do these sticks... don't want to constantly send input, so we need to compare them to last time
 		float lastCalX = jc->lastLX;
 		float lastCalY = jc->lastLY;
-		float calX = JslGetLeftX(jc->handle);
-		float calY = -JslGetLeftY(jc->handle);
+		float calX = jsl->GetLeftX(jc->handle);
+		float calY = -jsl->GetLeftY(jc->handle);
 
 		jc->lastLX = calX;
 		jc->lastLY = calY;
@@ -2548,8 +2556,8 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	{
 		float lastCalX = jc->lastRX;
 		float lastCalY = jc->lastRY;
-		float calX = JslGetRightX(jc->handle);
-		float calY = -JslGetRightY(jc->handle);
+		float calX = jsl->GetRightX(jc->handle);
+		float calY = -jsl->GetRightY(jc->handle);
 
 		jc->lastRX = calX;
 		jc->lastRY = calY;
@@ -2613,7 +2621,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		}
 	}
 
-	int buttons = JslGetButtons(jc->handle);
+	int buttons = jsl->GetButtons(jc->handle);
 
 	// button mappings
 	if (jc->controller_split_type != JS_SPLIT_TYPE_RIGHT)
@@ -2630,10 +2638,10 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		jc->handleButtonChange(ButtonID::LSL, buttons & (1 << JSOFFSET_SL));
 		jc->handleButtonChange(ButtonID::LSR, buttons & (1 << JSOFFSET_SR));
 
-		float lTrigger = JslGetLeftTrigger(jc->handle);
+		float lTrigger = jsl->GetLeftTrigger(jc->handle);
 		jc->handleTriggerChange(ButtonID::ZL, ButtonID::ZLF, jc->getSetting<TriggerMode>(SettingID::ZL_MODE), lTrigger);
 
-		bool touch = JslGetTouchDown(jc->handle, false) || JslGetTouchDown(jc->handle, true);
+		bool touch = jsl->GetTouchDown(jc->handle, false) || jsl->GetTouchDown(jc->handle, true);
 		switch (jc->platform_controller_type)
 		{
 		case JS_TYPE_DS4:
@@ -2667,7 +2675,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		jc->handleButtonChange(ButtonID::RSL, buttons & (1 << JSOFFSET_SL));
 		jc->handleButtonChange(ButtonID::RSR, buttons & (1 << JSOFFSET_SR));
 
-		float rTrigger = JslGetRightTrigger(jc->handle);
+		float rTrigger = jsl->GetRightTrigger(jc->handle);
 		jc->handleTriggerChange(ButtonID::ZR, ButtonID::ZRF, jc->getSetting<TriggerMode>(SettingID::ZR_MODE), rTrigger);
 	}
 
@@ -2794,7 +2802,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	auto newColor = jc->getSetting<Color>(SettingID::LIGHT_BAR);
 	if (jc->_light_bar != newColor)
 	{
-		JslSetLightColour(jc->handle, newColor.raw);
+		jsl->SetLightColour(jc->handle, newColor.raw);
 		jc->_light_bar = newColor;
 	}
 	jc->btnCommon->callback_lock.unlock();
@@ -2882,15 +2890,15 @@ void beforeShowTrayMenu()
 		  },
 		  bind(&PollingThread::isRunning, autoLoadThread.get()));
 
-		if (Whitelister::IsHIDCerberusRunning())
+		if (Whitelister::IsHIDCerberusRunning() && whitelister)
 		{
 			tray->AddMenuItem(
 			  U("Whitelist"), [](bool isChecked) {
 				  isChecked ?
-                    whitelister.Add() :
-                    whitelister.Remove();
+                    whitelister->Add() :
+                    whitelister->Remove();
 			  },
-			  bind(&Whitelister::operator bool, &whitelister));
+			  bind(&Whitelister::operator bool, whitelister.get()));
 		}
 		tray->AddMenuItem(
 		  U("Calibrate all devices"), [](bool isChecked) { isChecked ?
@@ -2940,10 +2948,9 @@ void CleanUp()
 	tray->Hide();
 	HideConsole();
 	handle_to_joyshock.clear();
-	JslDisconnectAndDisposeAll();
+	jsl->DisconnectAndDisposeAll();
 	handle_to_joyshock.clear(); // Destroy Vigem Gamepads
 	ReleaseConsole();
-	whitelister.Remove();
 }
 
 float filterClamp01(float current, float next)
@@ -3021,7 +3028,7 @@ TriggerMode filterTriggerMode(TriggerMode current, TriggerMode next)
 	// With SDL, I'm not sure if we have a reliable way to check if the device has analog or digital triggers. There's a function to query them, but I don't know if it works with the devices with custom readers (Switch, PS)
 	/*	for (auto &js : handle_to_joyshock)
 	{
-		if (JslGetControllerType(js.first) != JS_TYPE_DS4 && next != TriggerMode::NO_FULL)
+		if (jsl->GetControllerType(js.first) != JS_TYPE_DS4 && next != TriggerMode::NO_FULL)
 		{
 			COUT_WARN << "WARNING: Dual Stage Triggers are only valid on analog triggers. Full pull bindings will be ignored on non DS4 controllers." << endl;
 			break;
@@ -3307,11 +3314,19 @@ public:
 };
 
 #ifdef _WIN32
+#if defined(GTEST)
+int unusedMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLine, int cmdShow)
+#else
 int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLine, int cmdShow)
+#endif
 {
 	auto trayIconData = hInstance;
 #else
+#if defined(GTEST)
+int unusedMain(int argc, char *argv[])
+#else
 int main(int argc, char *argv[])
+#endif
 {
 	static_cast<void>(argc);
 	static_cast<void>(argv);
@@ -3327,7 +3342,7 @@ int main(int argc, char *argv[])
 	// console
 	initConsole();
 	ColorStream<&cout, FOREGROUND_GREEN | FOREGROUND_INTENSITY>() << "Welcome to JoyShockMapper version " << version << '!' << endl;
-	//if (whitelister) COUT << "JoyShockMapper was successfully whitelisted!" << endl;
+	//if (whitelister && *whitelister) COUT << "JoyShockMapper was successfully whitelisted!" << endl;
 	// Threads need to be created before listeners
 	CmdRegistry commandRegistry;
 	minimizeThread.reset(new PollingThread("Minimize thread", &MinimizePoll, nullptr, 1000, hide_minimized.get() == Switch::ON));          // Start by default
@@ -3591,7 +3606,7 @@ int main(int argc, char *argv[])
 	Mapping::_isCommandValid = bind(&CmdRegistry::isCommandValid, &commandRegistry, placeholders::_1);
 
 	connectDevices();
-	JslSetCallback(&joyShockPollCallback);
+	jsl->SetCallback(&joyShockPollCallback);
 	tray.reset(new TrayIcon(trayIconData, &beforeShowTrayMenu));
 	tray->Show();
 

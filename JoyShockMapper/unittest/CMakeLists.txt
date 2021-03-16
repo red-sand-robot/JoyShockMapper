@@ -11,20 +11,37 @@ CPMAddPackage (
 
 enable_testing()
 
-# Include the gtest library. gtest_SOURCE_DIR is available due to
-# 'project(gtest)' above.
-include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
 ##############
 # Unit Tests
 ##############
-add_executable(runUnitTests test_project1.cpp)
+add_executable(runUnitTests test_project1.cpp 
+    ../src/main.cpp
+    ../src/operators.cpp
+    ../src/CmdRegistry.cpp
+    ../src/quatMaths.cpp
+    ../src/ButtonHelp.cpp
+    ../src/win32/InputHelpers.cpp
+    ../src/win32/PlatformDefinitions.cpp
+    ../src/win32/WindowsTrayIcon.cpp
+	mockGamepad.cpp
+	gmock_main.cpp
+)
 
+add_definitions(-DGTEST)
+
+# Include the gtest library. gtest_SOURCE_DIR is available due to
+# 'project(gtest)' above.
+include_directories( ../include
+	${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR}
+	${gmock_SOURCE_DIR}/include ${gmock_SOURCE_DIR}
+	"${PROJECT_BINARY_DIR}/${PROJECT_NAME}/include"
+)
 
 # Standard linking to gtest stuff.
-target_link_libraries(runUnitTests gtest gtest_main)
+target_link_libraries(runUnitTests gtest gmock gmock_main magic_enum Platform::Dependencies)
 
 
 # This is so you can do 'make test' to see all your tests run, instead of
 # manually running the executable runUnitTests to see those specific tests.
-add_test(NAME that-test-I-made COMMAND runUnitTests)
+add_test(NAME Commands.RECONNECT_CONTROLLERS COMMAND runUnitTests)
