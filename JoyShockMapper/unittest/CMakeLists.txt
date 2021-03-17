@@ -15,7 +15,7 @@ enable_testing()
 ##############
 # Unit Tests
 ##############
-add_executable(runUnitTests test_project1.cpp 
+add_executable(runUnitTests testRegression.cpp 
     ../src/main.cpp
     ../src/operators.cpp
     ../src/CmdRegistry.cpp
@@ -25,6 +25,8 @@ add_executable(runUnitTests test_project1.cpp
     ../src/win32/PlatformDefinitions.cpp
     ../src/win32/WindowsTrayIcon.cpp
 	mockGamepad.cpp
+	mockJslWrapper.hpp
+	mockWhitelister.hpp
 	gmock_main.cpp
 )
 

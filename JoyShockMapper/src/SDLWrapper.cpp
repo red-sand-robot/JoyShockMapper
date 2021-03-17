@@ -42,6 +42,20 @@ struct ControllerDevice
 					_split_type = JS_SPLIT_TYPE_RIGHT;
 				}
 			}
+
+			_ctrlr_type = SDL_GameControllerGetType(_sdlController);
+			if (_ctrlr_type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO)
+			{
+				switch (_split_type) // Joycons are pro controllers
+				{
+				case JS_SPLIT_TYPE_LEFT:
+					_ctrlr_type = JS_TYPE_JOYCON_LEFT;
+					break;
+				case JS_SPLIT_TYPE_RIGHT:
+					_ctrlr_type = JS_TYPE_JOYCON_RIGHT;
+					break;
+				}
+			}
 		}
 	}
 
@@ -58,6 +72,7 @@ struct ControllerDevice
 	bool _has_gyro = true;
 	bool _has_accel = true;
 	int _split_type = JS_SPLIT_TYPE_FULL;
+	int _ctrlr_type;
 	uint16_t _small_rumble = 0;
 	uint16_t _big_rumble = 0;
 	SDL_GameController *_sdlController = nullptr;
@@ -442,15 +457,8 @@ public:
 
 	int GetControllerType(int deviceId) override
 	{
-		int type = SDL_GameControllerGetType(_controllerMap[deviceId]->_sdlController);
-		if (type == JS_TYPE_PRO_CONTROLLER)
-		{
-			if (GetControllerSplitType(deviceId) == JS_SPLIT_TYPE_LEFT)
-				return JS_TYPE_JOYCON_LEFT;
-			else if (GetControllerSplitType(deviceId) == JS_SPLIT_TYPE_RIGHT)
-				return JS_TYPE_JOYCON_RIGHT;
-		}
-		return type;
+
+		return _controllerMap[deviceId]->_ctrlr_type;
 	}
 
 	int GetControllerSplitType(int deviceId) override

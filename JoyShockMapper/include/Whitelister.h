@@ -15,13 +15,14 @@ protected:
 	}
 
 public:
-	static bool ShowHIDCerberus();
-	static bool IsHIDCerberusRunning();
 	static Whitelister *getNew(bool add = false);
 
 	virtual ~Whitelister()
 	{
 	}
+
+	virtual bool ShowHIDCerberus() = 0;
+	virtual bool IsHIDCerberusRunning() = 0;
 
 	virtual bool Add(string *optErrMsg = nullptr) = 0;
 	virtual bool Remove(string *optErrMsg = nullptr) = 0;

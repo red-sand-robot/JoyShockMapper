@@ -1,19 +1,5 @@
-#include "JoyShockMapper.h"
 #include "JslWrapper.h"
-#include "Whitelister.h"
-#include <iostream>
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
-
-class SomeJsl
-{
-public:
-	virtual ~SomeJsl(){};
-	virtual int JslConnectDevices()
-	{
-		return 1;
-	}
-};
 
 class MockJslWrapper : public JslWrapper
 {
@@ -63,48 +49,5 @@ public:
 
 JslWrapper* JslWrapper::getNew()
 {
-	return new MockJslWrapper();
-}
-
-class MockWhitelister : public Whitelister
-{
-public:
-	MockWhitelister()
-	  : Whitelister()
-	{
-	}
-
-	MOCK_METHOD(bool, Add, (string * optErrMsg), (override));
-	MOCK_METHOD(bool, Remove, (string * optErrMsg), (override));
-};
-
-Whitelister* Whitelister::getNew(bool add)
-{
-	return new MockWhitelister();
-}
-
-bool Whitelister::ShowHIDCerberus()
-{
-	return false;
-}
-
-bool Whitelister::IsHIDCerberusRunning()
-{
-	return false;
-}
-
-extern unique_ptr<JslWrapper> jsl;
-extern unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
-
-// IndependentMethod is a test case - here, we have 2 tests for this 1 test case
-TEST(Commands, RECONNECT_CONTROLLERS)
-{
-	using namespace ::testing;
-	auto mjsl = dynamic_cast<MockJslWrapper*>(jsl.get());
-	EXPECT_CALL(*mjsl, ConnectDevices).WillOnce(Return(1));
-
-	bool result = do_RECONNECT_CONTROLLERS("");
-
-	EXPECT_TRUE(result);
-	EXPECT_EQ(handle_to_joyshock.size(), 0) << "There should have been no device";
+	return new ::testing::NiceMock<MockJslWrapper>();
 }

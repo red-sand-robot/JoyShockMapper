@@ -49,58 +49,6 @@ static SOCKET connectToServer(const string &szServerName, WORD portNum)
 	return conn;
 }
 
-bool Whitelister::IsHIDCerberusRunning()
-{
-	// Source: https://stackoverflow.com/questions/7808085/how-to-get-the-status-of-a-service-programmatically-running-stopped
-	SC_HANDLE theService, scm;
-	SERVICE_STATUS_PROCESS ssStatus;
-	DWORD dwBytesNeeded;
-
-	scm = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_ENUMERATE_SERVICE);
-	if (!scm)
-	{
-		return 0;
-	}
-
-	theService = OpenService(scm, L"HidCerberus.Srv", SERVICE_QUERY_STATUS);
-	if (!theService)
-	{
-		CloseServiceHandle(scm);
-		return 0;
-	}
-
-	auto result = QueryServiceStatusEx(theService, SC_STATUS_PROCESS_INFO,
-	  reinterpret_cast<LPBYTE>(&ssStatus), sizeof(SERVICE_STATUS_PROCESS),
-	  &dwBytesNeeded);
-
-	CloseServiceHandle(theService);
-	CloseServiceHandle(scm);
-
-	return result == TRUE && ssStatus.dwCurrentState == SERVICE_RUNNING;
-}
-
-bool Whitelister::ShowHIDCerberus()
-{
-	std::cout << "Open HIDCerberus at the following adress in your browser:" << endl
-	          << "http://localhost:26762/" << endl;
-	return true;
-	// SECURE CODING! https://www.oreilly.com/library/view/secure-programming-cookbook/0596003943/ch01s08.html
-	//STARTUPINFOA startupInfo;
-	//PROCESS_INFORMATION procInfo;
-	//memset(&startupInfo, 0, sizeof(STARTUPINFOA));
-	//memset(&procInfo, 0, sizeof(PROCESS_INFORMATION));
-	//auto pid = GetCurrentProcessId();
-	//auto success = CreateProcessA(NULL, R"(cmd /C "start http://localhost:26762/")", NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &startupInfo, &procInfo);
-	//if (success == TRUE)
-	//{
-	//	CloseHandle(procInfo.hProcess);
-	//	CloseHandle(procInfo.hThread);
-	//	return true;
-	//}
-	//auto err = GetLastError();
-	//return false;
-}
-
 class WhitelisterImpl : public Whitelister
 {
 public:
@@ -116,6 +64,58 @@ public:
 	~WhitelisterImpl()
 	{
 		Remove();
+	}
+
+	bool IsHIDCerberusRunning() override
+	{
+		// Source: https://stackoverflow.com/questions/7808085/how-to-get-the-status-of-a-service-programmatically-running-stopped
+		SC_HANDLE theService, scm;
+		SERVICE_STATUS_PROCESS ssStatus;
+		DWORD dwBytesNeeded;
+
+		scm = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_ENUMERATE_SERVICE);
+		if (!scm)
+		{
+			return 0;
+		}
+
+		theService = OpenService(scm, L"HidCerberus.Srv", SERVICE_QUERY_STATUS);
+		if (!theService)
+		{
+			CloseServiceHandle(scm);
+			return 0;
+		}
+
+		auto result = QueryServiceStatusEx(theService, SC_STATUS_PROCESS_INFO,
+		  reinterpret_cast<LPBYTE>(&ssStatus), sizeof(SERVICE_STATUS_PROCESS),
+		  &dwBytesNeeded);
+
+		CloseServiceHandle(theService);
+		CloseServiceHandle(scm);
+
+		return result == TRUE && ssStatus.dwCurrentState == SERVICE_RUNNING;
+	}
+
+	bool ShowHIDCerberus() override
+	{
+		std::cout << "Open HIDCerberus at the following adress in your browser:" << endl
+		          << "http://localhost:26762/" << endl;
+		return true;
+		// SECURE CODING! https://www.oreilly.com/library/view/secure-programming-cookbook/0596003943/ch01s08.html
+		//STARTUPINFOA startupInfo;
+		//PROCESS_INFORMATION procInfo;
+		//memset(&startupInfo, 0, sizeof(STARTUPINFOA));
+		//memset(&procInfo, 0, sizeof(PROCESS_INFORMATION));
+		//auto pid = GetCurrentProcessId();
+		//auto success = CreateProcessA(NULL, R"(cmd /C "start http://localhost:26762/")", NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &startupInfo, &procInfo);
+		//if (success == TRUE)
+		//{
+		//	CloseHandle(procInfo.hProcess);
+		//	CloseHandle(procInfo.hThread);
+		//	return true;
+		//}
+		//auto err = GetLastError();
+		//return false;
 	}
 
 	virtual bool Add(string *optErrMsg = nullptr) override

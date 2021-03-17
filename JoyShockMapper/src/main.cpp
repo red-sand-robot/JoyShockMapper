@@ -20,7 +20,9 @@
 const KeyCode KeyCode::EMPTY = KeyCode();
 const Mapping Mapping::NO_MAPPING = Mapping("NONE");
 function<bool(in_string)> Mapping::_isCommandValid = function<bool(in_string)>();
-unique_ptr<JslWrapper> jsl(JslWrapper::getNew());
+unique_ptr<JslWrapper> jsl;
+unique_ptr<TrayIcon> tray;
+unique_ptr<Whitelister> whitelister;
 
 class JoyShock;
 void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE lastState, IMU_STATE imuState, IMU_STATE lastImuState, float deltaTime);
@@ -99,9 +101,7 @@ float os_mouse_speed = 1.0;
 float last_flick_and_rotation = 0.0;
 unique_ptr<PollingThread> autoLoadThread;
 unique_ptr<PollingThread> minimizeThread;
-unique_ptr<TrayIcon> tray;
 bool devicesCalibrating = false;
-unique_ptr<Whitelister> whitelister(Whitelister::getNew(false));
 unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
 
 // This class holds all the logic related to a single digital button. It does not hold the mapping but only a reference
@@ -1867,7 +1867,7 @@ void connectDevices(bool mergeJoycons = true)
 	}
 	//if (!IsVisible())
 	//{
-	//	tray->SendToast(wstring(msg.begin(), msg.end()));
+	//	tray->SendNotification(wstring(msg.begin(), msg.end()));
 	//}
 
 	//if (numConnected != 0) {
@@ -2062,8 +2062,11 @@ bool do_README()
 
 bool do_WHITELIST_SHOW()
 {
-	COUT << "Your PID is " << GetCurrentProcessId() << endl;
-	Whitelister::ShowHIDCerberus();
+	if (whitelister)
+	{
+		COUT << "Your PID is " << GetCurrentProcessId() << endl;
+		whitelister->ShowHIDCerberus();
+	}
 	return true;
 }
 
@@ -2890,7 +2893,7 @@ void beforeShowTrayMenu()
 		  },
 		  bind(&PollingThread::isRunning, autoLoadThread.get()));
 
-		if (Whitelister::IsHIDCerberusRunning() && whitelister)
+		if (whitelister->IsHIDCerberusRunning() && whitelister)
 		{
 			tray->AddMenuItem(
 			  U("Whitelist"), [](bool isChecked) {
@@ -2945,7 +2948,10 @@ void beforeShowTrayMenu()
 // Perform all cleanup tasks when JSM is exiting
 void CleanUp()
 {
-	tray->Hide();
+	if (tray)
+	{
+		tray->Hide();
+	}
 	HideConsole();
 	handle_to_joyshock.clear();
 	jsl->DisconnectAndDisposeAll();
@@ -3332,6 +3338,8 @@ int main(int argc, char *argv[])
 	static_cast<void>(argv);
 	void *trayIconData = nullptr;
 #endif // _WIN32
+	jsl.reset(JslWrapper::getNew());
+	whitelister.reset(Whitelister::getNew(false));
 	mappings.reserve(MAPPING_SIZE);
 	for (int id = 0; id < MAPPING_SIZE; ++id)
 	{
@@ -3607,8 +3615,11 @@ int main(int argc, char *argv[])
 
 	connectDevices();
 	jsl->SetCallback(&joyShockPollCallback);
-	tray.reset(new TrayIcon(trayIconData, &beforeShowTrayMenu));
-	tray->Show();
+	tray.reset(TrayIcon::getNew(trayIconData, &beforeShowTrayMenu));
+	if (tray)
+	{
+		tray->Show();
+	}
 
 	do_RESET_MAPPINGS(&commandRegistry); // onreset.txt
 	if (commandRegistry.loadConfigFile("onstartup.txt"))
