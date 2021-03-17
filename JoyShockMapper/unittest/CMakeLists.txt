@@ -22,7 +22,7 @@ add_executable(runUnitTests testRegression.cpp
     ../src/quatMaths.cpp
     ../src/ButtonHelp.cpp
     ../src/win32/PlatformDefinitions.cpp
-	mockGamepad.cpp
+	mockGamepad.hpp
 	mockJslWrapper.hpp
 	mockWhitelister.hpp
 	mockInputHelpers.hpp

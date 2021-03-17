@@ -118,7 +118,7 @@ public:
 			chordStack.push_front(ButtonID::NONE); //Always hold mapping none at the end to handle modeshifts and chords
 			if (virtual_controller.get() != ControllerScheme::NONE)
 			{
-				_vigemController.reset(new Gamepad(virtual_controller.get(), virtualControllerCallback));
+				_vigemController.reset(Gamepad::getNew(virtual_controller.get(), virtualControllerCallback));
 			}
 		}
 		deque<pair<ButtonID, KeyCode>> gyroActionQueue; // Queue of gyro control actions currently in effect
@@ -3111,8 +3111,8 @@ ControllerScheme UpdateVirtualController(ControllerScheme prevScheme, Controller
 			}
 			else
 			{
-				js.second->btnCommon->_vigemController.reset(new Gamepad(nextScheme, bind(&JoyShock::handleViGEmNotification, js.second.get(), placeholders::_1, placeholders::_2, placeholders::_3)));
-				success &= js.second->btnCommon->_vigemController->isInitialized();
+				js.second->btnCommon->_vigemController.reset(Gamepad::getNew(nextScheme, bind(&JoyShock::handleViGEmNotification, js.second.get(), placeholders::_1, placeholders::_2, placeholders::_3)));
+				success &= js.second->btnCommon->_vigemController && js.second->btnCommon->_vigemController->isInitialized();
 			}
 		}
 	}

@@ -4,6 +4,7 @@
 #include "JoyShockMapper.h"
 #include "Whitelister.h"
 #include "TrayIcon.h"
+#include "Gamepad.h"
 #include "mockJslWrapper.hpp"
 #include "mockInputHelpers.hpp"
 
@@ -21,6 +22,12 @@ Whitelister* Whitelister::getNew(bool add)
 TrayIcon* TrayIcon::getNew(TrayIconData applicationName, std::function<void()>&& beforeShow)
 {
 	return nullptr; // Disable tray icon
+}
+
+Gamepad*
+Gamepad::getNew(ControllerScheme scheme, Callback notification)
+{
+	return nullptr; // Disable Gamepad output
 }
 
 class Regression : public Test
