@@ -3,16 +3,24 @@
 
 #include "JoyShockMapper.h"
 #include "Whitelister.h"
+#include "TrayIcon.h"
 #include "mockJslWrapper.hpp"
+#include "mockInputHelpers.hpp"
 
 extern unique_ptr<JslWrapper> jsl;
 extern unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
 
 using namespace ::testing;
 
+class Whitelister;
 Whitelister* Whitelister::getNew(bool add)
 {
 	return nullptr; // Disable whitelisting
+}
+
+TrayIcon* TrayIcon::getNew(TrayIconData applicationName, std::function<void()>&& beforeShow)
+{
+	return nullptr; // Disable tray icon
 }
 
 class Regression : public Test

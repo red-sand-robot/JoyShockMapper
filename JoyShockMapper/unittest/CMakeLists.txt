@@ -21,16 +21,12 @@ add_executable(runUnitTests testRegression.cpp
     ../src/CmdRegistry.cpp
     ../src/quatMaths.cpp
     ../src/ButtonHelp.cpp
-    ../src/win32/InputHelpers.cpp
     ../src/win32/PlatformDefinitions.cpp
-    ../src/win32/WindowsTrayIcon.cpp
 	mockGamepad.cpp
 	mockJslWrapper.hpp
 	mockWhitelister.hpp
-	gmock_main.cpp
+	mockInputHelpers.hpp
 )
-
-add_definitions(-DGTEST)
 
 # Include the gtest library. gtest_SOURCE_DIR is available due to
 # 'project(gtest)' above.

@@ -93,7 +93,7 @@ JSMVariable<ControllerScheme> virtual_controller = JSMVariable<ControllerScheme>
 JSMSetting<TriggerMode> touch_ds_mode = JSMSetting<TriggerMode>(SettingID::TOUCHPAD_DUAL_STAGE_MODE, TriggerMode::NO_SKIP);
 JSMSetting<Switch> rumble_enable = JSMSetting<Switch>(SettingID::RUMBLE, Switch::ON);
 
-JSMVariable<PathString> currentWorkingDir = JSMVariable<PathString>(GetCWD());
+JSMVariable<PathString> currentWorkingDir = JSMVariable<PathString>(PathString());
 vector<JSMButton> mappings; // array enables use of for each loop and other i/f
 mutex loading_lock;
 
@@ -135,7 +135,7 @@ public:
 		return btn == pair.first;
 	}
 
-	DigitalButton(shared_ptr<DigitalButton::Common> btnCommon, ButtonID id, int deviceHandle, GamepadMotion *gamepadMotion)
+	DigitalButton(shared_ptr<DigitalButton::Common> btnCommon, ButtonID id, GamepadMotion *gamepadMotion)
 	  : _id(id)
 	  , _btnState(BtnState::NoPress)
 	  , _common(btnCommon)
@@ -1024,7 +1024,7 @@ public:
 		buttons.reserve(mappings.size());
 		for (int i = 0; i < mappings.size(); ++i)
 		{
-			buttons.push_back(DigitalButton(btnCommon, ButtonID(i), uniqueHandle, &motion));
+			buttons.push_back(DigitalButton(btnCommon, ButtonID(i), &motion));
 		}
 		ResetSmoothSample();
 		if (!CheckVigemState())
@@ -3320,19 +3320,11 @@ public:
 };
 
 #ifdef _WIN32
-#if defined(GTEST)
-int unusedMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLine, int cmdShow)
-#else
 int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLine, int cmdShow)
-#endif
 {
 	auto trayIconData = hInstance;
 #else
-#if defined(GTEST)
-int unusedMain(int argc, char *argv[])
-#else
 int main(int argc, char *argv[])
-#endif
 {
 	static_cast<void>(argc);
 	static_cast<void>(argv);
