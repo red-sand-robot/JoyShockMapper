@@ -21,6 +21,8 @@ add_executable(runUnitTests testRegression.cpp
     ../src/CmdRegistry.cpp
     ../src/quatMaths.cpp
     ../src/ButtonHelp.cpp
+	../src/GamepadMotion.cpp
+	../src/DigitalButton.cpp
     ../src/win32/PlatformDefinitions.cpp
 	mockGamepad.hpp
 	mockJslWrapper.hpp
@@ -37,7 +39,7 @@ include_directories( ../include
 )
 
 # Standard linking to gtest stuff.
-target_link_libraries(runUnitTests gtest gmock gmock_main magic_enum Platform::Dependencies)
+target_link_libraries(runUnitTests gtest gmock gmock_main magic_enum pocket_fsm Platform::Dependencies)
 
 
 # This is so you can do 'make test' to see all your tests run, instead of

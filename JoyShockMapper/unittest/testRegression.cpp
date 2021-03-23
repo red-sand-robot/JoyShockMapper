@@ -8,6 +8,8 @@
 #include "mockJslWrapper.hpp"
 #include "mockInputHelpers.hpp"
 
+class JoyShock;
+
 extern unique_ptr<JslWrapper> jsl;
 extern unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
 
