@@ -19,6 +19,8 @@ add_executable (
     src/CmdRegistry.cpp
     src/quatMaths.cpp
     src/ButtonHelp.cpp
+	src/DigitalButton.cpp
+	src/GamepadMotion.cpp
     include/InputHelpers.h
     include/PlatformDefinitions.h
     include/TrayIcon.h
@@ -29,8 +31,9 @@ add_executable (
     include/Whitelister.h
     include/JoyShockMapper.h
     include/ColorCodes.h
-    include/GamepadMotion.hpp
+    include/GamepadMotion.h
 	include/Gamepad.h
+	include/DigitalButton.h
 )
 
 if (WINDOWS)
@@ -189,4 +192,17 @@ target_link_libraries (
     ${BINARY_NAME} PRIVATE
     Platform::Dependencies
     magic_enum
+)
+
+# pocket_fsm
+CPMAddPackage (
+    NAME pocket_fsm
+    GITHUB_REPOSITORY Electronicks/pocket_fsm
+    GIT_TAG master
+)
+
+target_link_libraries (
+    ${BINARY_NAME} PRIVATE
+    Platform::Dependencies
+    pocket_fsm
 )

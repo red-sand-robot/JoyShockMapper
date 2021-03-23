@@ -332,10 +332,10 @@ enum class GyroAxisMask
 };
 enum class JoyconMask
 {
-	USE_BOTH,
-	IGNORE_LEFT,
-	IGNORE_RIGHT,
-	IGNORE_BOTH,
+	IGNORE_BOTH = 0b00,
+	IGNORE_LEFT = 0b01,
+	IGNORE_RIGHT = 0b10,
+	USE_BOTH = 0b11,
 	INVALID
 };
 enum class GyroIgnoreMode
@@ -358,21 +358,7 @@ enum class DstState
 	ExclFullPress,
 	INVALID
 };
-enum class BtnState
-{
-	NoPress,
-	BtnPress,
-	TapRelease,
-	WaitSim,
-	SimPress,
-	SimRelease,
-	DblPressStart,
-	DblPressNoPressTap,
-	DblPressNoPressHold,
-	DblPressPress,
-	InstRelease,
-	INVALID
-};
+
 enum class BtnEvent
 {
 	OnPress,
@@ -513,10 +499,23 @@ struct GyroSettings
 	GyroIgnoreMode ignore_mode = GyroIgnoreMode::BUTTON;
 };
 
-class DigitalButton;
-class JoyShock;
+// The list of different function that can be bound in the mapping
+class EventActionIf
+{
+public:
+	typedef function<void(EventActionIf *)> Callback;
 
-typedef function<void(DigitalButton *)> OnEventAction;
+	virtual void RegisterInstant(BtnEvent evt) = 0;
+	virtual void ApplyGyroAction(KeyCode gyroAction) = 0;
+	virtual void RemoveGyroAction() = 0;
+	virtual void SetRumble(int smallRumble, int bigRumble) = 0;
+	virtual void ApplyBtnPress(KeyCode key) = 0;
+	virtual void ApplyBtnRelease(KeyCode key) = 0;
+	virtual void ApplyButtonToggle(KeyCode key, Callback apply, Callback release) = 0;
+	virtual void StartCalibration() = 0;
+	virtual void FinishCalibration() = 0;
+	virtual const char *getDisplayName() = 0;
+};
 
 // This structure handles the mapping of a button, buy processing and action
 // to be done on tap, hold, turbo and others. It holds a map of actions to perform
@@ -552,12 +551,12 @@ public:
 	string _command;
 
 private:
-	map<BtnEvent, OnEventAction> _eventMapping;
+	map<BtnEvent, EventActionIf::Callback> _eventMapping;
 	float _tapDurationMs = MAGIC_TAP_DURATION;
 	bool _hasViGEmBtn = false;
 
-	void InsertEventMapping(BtnEvent evt, OnEventAction action);
-	static void RunBothActions(DigitalButton *btn, OnEventAction action1, OnEventAction action2);
+	void InsertEventMapping(BtnEvent evt, EventActionIf::Callback action);
+	static void RunBothActions(EventActionIf *btn, EventActionIf::Callback action1, EventActionIf::Callback action2);
 
 public:
 	Mapping() = default;
@@ -569,7 +568,7 @@ public:
 	{
 	}
 
-	void ProcessEvent(BtnEvent evt, DigitalButton &button, in_string displayName) const;
+	void ProcessEvent(BtnEvent evt, EventActionIf &button) const;
 
 	bool AddMapping(KeyCode key, EventModifier evtMod, ActionModifier actMod = ActionModifier::None);
 
