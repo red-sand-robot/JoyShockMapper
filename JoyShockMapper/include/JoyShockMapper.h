@@ -122,6 +122,39 @@ enum class ButtonID
 	// insert more analog triggers here
 	ZRF,  // =  LAST_ANALOG_TRIGGER
 	SIZE, // Not a button
+
+	// Virtual buttons configured on the touchpad. The number of buttons vary dynamically, but they each need a different ID
+	TUP, // FIRST_TOUCH_BUTTON
+	TDOWN,
+	TLEFT,
+	TRIGHT,
+	TRING,
+	T1,
+	T2,
+	T3,
+	T4,
+	T5,
+	T6,
+	T7,
+	T8,
+	T9,
+	T10,
+	T11,
+	T12,
+	T13,
+	T14,
+	T15,
+	T16,
+	T17,
+	T18,
+	T19,
+	T20,
+	T21,
+	T22,
+	T23,
+	T24,
+	T25,
+	// Add as necessary...
 };
 
 // Help strings for each button
@@ -203,6 +236,13 @@ enum class SettingID
 	TICK_TIME,
 	SIM_PRESS_WINDOW, // Unchorded setting
 	DBL_PRESS_WINDOW, // Unchorded setting
+	GRID_SIZE,        // Unchorded setting
+	TOUCHPAD_MODE,
+	TOUCH_STICK_MODE,
+	TOUCH_STICK_RADIUS,
+	TOUCH_DEADZONE_INNER,
+	TOUCH_RING_MODE,
+	TOUCHPAD_SENS,
 	LIGHT_BAR,
 	SCROLL_SENS,
 	VIRTUAL_CONTROLLER,
@@ -211,9 +251,11 @@ enum class SettingID
 };
 
 // constexpr are like #define but with respect to typeness
+constexpr size_t MAX_NO_OF_TOUCH = 2; // Could be obtained from JSL?
 constexpr int MAPPING_SIZE = int(ButtonID::SIZE);
 constexpr int FIRST_ANALOG_TRIGGER = int(ButtonID::ZLF);
 constexpr int LAST_ANALOG_TRIGGER = int(ButtonID::ZRF);
+constexpr int FIRST_TOUCH_BUTTON = MAPPING_SIZE + 1;
 constexpr int NUM_ANALOG_TRIGGERS = int(LAST_ANALOG_TRIGGER) - int(FIRST_ANALOG_TRIGGER) + 1;
 constexpr float MAGIC_TAP_DURATION = 40.0f;           // in milliseconds.
 constexpr float MAGIC_INSTANT_DURATION = 40.0f;       // in milliseconds
@@ -356,6 +398,13 @@ enum class ControllerScheme
 	INVALID
 };
 
+enum class TouchpadMode
+{
+	GRID_AND_STICK, // Grid and Stick ?
+	MOUSE,          // gestures to be added as part of this mode
+	INVALID
+};
+
 // Workaround default string streaming operator
 class PathString : public string // Should be wstring
 {
@@ -461,13 +510,6 @@ struct GyroSettings
 	bool always_off = false;
 	ButtonID button = ButtonID::NONE;
 	GyroIgnoreMode ignore_mode = GyroIgnoreMode::BUTTON;
-
-	GyroSettings() = default;
-	// This constructor is required to make use of the default value of JSMVariable's constructor
-	GyroSettings(int dummy)
-	  : GyroSettings()
-	{
-	}
 };
 
 class DigitalButton;

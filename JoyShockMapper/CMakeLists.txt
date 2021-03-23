@@ -48,7 +48,7 @@ if (WINDOWS)
     if(SDL)
         target_sources (
             ${BINARY_NAME} PRIVATE
-            src/SDLWrapper.cpp
+            src/SDL2Wrapper.cpp
 		)
 		add_definitions(-DSDL2)
 	else()
@@ -162,6 +162,7 @@ if(SDL)
 
 	install (
 		TARGETS ${BINARY_NAME} SDL2
+		RUNTIME DESTINATION ${PACKAGE_DIR}
 	)
 else()
 	# JoyShockLibrary
@@ -179,6 +180,7 @@ else()
 
 	install (
 		TARGETS ${BINARY_NAME} JoyShockLibrary
+		RUNTIME DESTINATION ${PACKAGE_DIR}
 	)
 endif()
 

@@ -40,13 +40,15 @@ JoyShockMapper is primarily developed on Windows. JoyShockMapper should now be a
     * **[Xbox bindings](#61-xbox-bindings)**
     * **[DS4 bindings](#62-ds4-bindings)**
   * **[Modeshifts](#7-modeshifts)**
-  * **[Miscellaneous Commands](#8-miscellaneous-commands)**
+  * **[Touchpad](#8-touchpad)**
+    * **[Touch Sticks](#81-touch-stick)**
+  * **[Miscellaneous Commands](#9-miscellaneous-commands)**
 * **[Configuration Files](#configuration-files)**
   * **[OnStartup.txt](#1-onstartuptxt)**
   * **[OnReset.txt](#2-onresettxt)**
   * **[Autoload feature](#3-autoload-feature)**
-* **[Known and Perceived Issues](#known-and-perceived-issues)**
 * **[Troubleshooting](#troubleshooting)**
+* **[Known and Perceived Issues](#known-and-perceived-issues)**
 * **[Credits](#credits)**
 * **[Helpful Resources](#helpful-resources)**
 * **[License](#license)**
@@ -189,8 +191,8 @@ L3: L3 or Left-stick click
 R3: R3 or Right-stick click
 N: The North face button, △, Y (Xbox) or X (Nintendo)
 E: The East face button, ○, B (Xbox) or A (Nintendo)
-S: The South face button, ⨉, X (Xbox) or B (Nintendo)
-W: The West face button, □, A (Xbox) or Y (Nintendo)
+S: The South face button, ⨉, A (Xbox) or B (Nintendo)
+W: The West face button, □, X (Xbox) or Y (Nintendo)
 LUP, LDOWN, LLEFT, LRIGHT: Left stick tilted up, down left or right
 LRING: Left ring binding, either inner or outer.
 RUP, RDOWN, RLEFT, RRIGHT: Right stick tilted up, down, left or right
@@ -222,7 +224,7 @@ SCROLLUP, SCROLLDOWN: scroll the mouse wheel up, down, respectively
 VOLUME_UP, VOLUME_DOWN, MUTE: Volume controls
 NEXT_TRACK, PREV_TRACK, STOP_TRACK, PLAY_PAUSE: media control
 SCREENSHOT: print screen button
-NONE: No input
+NONE, DEFAULT: No input
 CALIBRATE: recalibrate gyro when pressing this input
 GYRO_ON, GYRO_OFF: Enable or disable gyro
 GYRO_INVERT, GYRO_INV_X, GYRO_INV_Y: Invert gyro, or in just the x or y axes, respectively
@@ -787,7 +789,7 @@ GYRO_OFF = R3 # Use gyro, disable with stick click
 
 R = Q # Last weapon / Bring up weapon wheel
 
-R,GYRO_ON = NONE # Disable gyro when R is down
+R,GYRO_ON = NONE\ # Disable gyro when R is down
 R,RIGHT_STICK_MODE = MOUSE_AREA # Select wheel item with stick
 ```
 
@@ -805,13 +807,79 @@ ZLF,GYRO_SENS = 0.5 0.4 # Half sensitivity on full pull
 
 These commands function exactly like chorded press bindings, whereas if multiple chords are active the latest has priority. Also the chord is active whenever the button is down regardless of whether a binding is active or not. It is also worth noting that a special case is handled on stick mode changes where upon returning to the normal mode by releasing the chord button, the stick input will be ignored until it returns to the center. In the DOOM example above, this prevents an undesirable flick upon releasing the chord.
 
-To remove an existing modeshift you have to assign ```NONE``` to the chord.
+To remove an existing modeshift you have to assign ```NONE``` to the chord. There is special handling for the gyro button because NONE is a valid assignment. Add a backslash to indicate it is the button assignment rather than clearing the modeshift
 
 ```
-ZLF,GYRO_SENS = NONE
+GYRO_OFF = RIGHT_STICK   # Gyro off when using right stick
+ZLF,GYRO_OFF = NONE\     # RS does not turn gyro off when ZLF is pressed
+ZLF,GYRO_OFF = NONE      # oops undo
 ```
 
-### 8. Miscellaneous Commands
+### 8. Touchpad
+
+The touchpad always offers the ```TOUCH``` button binding. It will be pressed if there is any touch point active. This binding will overlap with other touch buttons and can be useful to disable gyro for example, or bring up the game map.
+
+The most important setting for the touchpad is simply ```TOUCHPAD_MODE``` which will determine the primary functionality of the touchpad. Here are th possible values:
+* **GRID_AND_STICK** - Grid And Stick will create a button grid of equally sized buttons on the touch pad. You have to also assign to ```GRID_SIZE``` the number of columns and rows of the grid : the product of the two cannot be greater than 25 or lesser than 1. Touch buttons T1-TN will then become available for assignment: they are layed out in order from left to right, from top to bottom. There are also two touchsticks available. See below.
+* **MOUSE** - Mouse mode turns the touchpad into a familiar laptop touchpad. Sensitivity can be adjusted via ```TOUCHPAD_SENS```. Using two fingers you can rotate to trigger TLEFT and TRIGHT bindings like a scroll wheel ; you can also pinch to trigger TUP and TDOWN and use the vertical value of ```SCROLL_SENS```. More gestures will be added to this mode in a future release such as double touch. Taps and double taps are already usable via ```TOUCH```.
+
+Here's an example of grid usage to add some more buttons that otherwise would not be worth putting on a controller
+```
+TOUCHPAD_MODE = GRID_AND_STICK
+GRID_SIZE = 2 1   # split the pad in two buttons, left and right
+GYRO_OFF = TOUCH  # disable the gyro when I touch either button
+
+# Bind on clicks
+CAPTURE = NONE   # Chorded with touch buttons
+T1,CAPTURE = F1  # View Help
+T2,CAPTURE = F10 # Quick Save
+```
+
+Or a typical touchapd in cursor mode
+```
+TOUCHPAD_MODE = MOUSE
+TOUCH = LMOUSE'	           # Quick tap means select
+TOUCH,TOUCH = RMOUSE       # Double tap for right click
+CAPTURE = ^LMOUSE          # Or click pad to toggle click (dragging)
+TUP = CONTROL\ SCROLLDOWN\ # Zoom in when stretching outward
+TDOWN = CONTROL\ SCROLLUP\ # Zoom out when pinching inward
+TRIGHT = SCROLLDOWN        # Rotate clockwise to scroll down
+TLEFT = SCROLLUP           # Rotate counter-clockwise to scroll up
+TOUCH,SCROLL_SENS = 15 10  # Rotate 15 deg and travel 10 units
+```
+
+#### 8.1 Touch Sticks
+
+A touch stick is a virtual joystick mapped unto the touchpad. As such, a touch stick has and uses all of the familiar binding names and settings, plus one new setting.
+```
+TUP, TDOWN, TLEFT, TRIGHT, TRING : The touchstick four directions when in NO_MOUSE mode.
+TOUCH_STICK_MODE: Set the touchstick to any  stick mode (AIM, FLICK_ONLY, MOUSE_AREA, etc...)
+TOUCH_DEADZONE_INNER: Sets how large the area with no output is. There is no TOUCH_DEADZONE_OUTER, as it is replaced with TOUCH_STICK_RADIUS. See below.
+TOUCH_RING_MODE: Sets what ring should be used for TRING, either INNER or OUTER.
+TOUCH_STICK_RADIUS: Sets the size of the stick, or in other words, the amount of touchpad units to travel to the edge of the stick.
+```
+
+The touchstick center is always the point of contact. As such, one can easily configure gestures by setting a very large touch stick radius and binding values to the 4 directions.
+
+The touch stick differs from other input methods in one particular way. The four stick directions cannot be used as a chord for other buttons, but you can chord the four direction with the grid buttons. As such, you can control two touch sticks at the same time on either side of the touch pad with each having different bindings. The example below showcases the numbers 1 to 4 bound to swipe gestures on the left half of the pad, and 5 to 8 bound to swipe gestures on the right half of the pad.
+
+```
+TOUCH_STICK_MODE = GRID_AND_STICK
+GRID_SIZE = 2 1 # Left and Right
+TOUCH_STICK_RADIUS = 800 # Use a larger value to use stick as swipe gestures
+
+T1,TLEFT = 1
+T1,TUP = 2
+T1,TRIGHT = 3
+T1,TDOWN = 4
+
+T2,TLEFT = 5
+T2,TUP = 6
+T2,TRIGHT = 7
+T2,TDOWN = 8
+```
+
+### 9. Miscellaneous Commands
 There are a few other useful commands that don't fall under the above categories:
 
 * **RESET\_MAPPINGS** - This will reset all JoyShockMapper's settings to their default values. This way you don't have to manually unset button mappings or other settings when making a big change. It can be useful to always start your configuration files with the RESET\_MAPPINGS command. The only exceptions to this are the calibration state and AUTOLOAD.

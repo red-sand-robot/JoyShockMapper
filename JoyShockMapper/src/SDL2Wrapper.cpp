@@ -146,6 +146,7 @@ public:
 			SDL_Thread *controller_polling_thread = SDL_CreateThread(&SdlInstance::pollDevices, "Poll Devices", this);
 			SDL_DetachThread(controller_polling_thread);
 		}
+		SDL_GameControllerUpdate(); // Refresh driver listing
 		return SDL_NumJoysticks();
 	}
 
