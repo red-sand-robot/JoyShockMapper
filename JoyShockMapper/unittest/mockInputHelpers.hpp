@@ -35,7 +35,7 @@ float getMouseSpeed()
 // send mouse button
 int pressMouse(KeyCode vkKey, bool isPressed)
 {
-	return mockInput->pressMouse(vkKey, pressKey);
+	return mockInput->pressMouse(vkKey, isPressed);
 }
 
 // send key press

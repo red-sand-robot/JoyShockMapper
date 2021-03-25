@@ -4,6 +4,41 @@
 #include "PlatformDefinitions.h"
 #include "InputHelpers.h"
 
+template<std::ostream *stdio, uint16_t color>
+class ColorStream : public Log
+{
+public:
+	ColorStream() { }
+	// print the string on the stdio
+	virtual ~ColorStream()
+	{
+		std::lock_guard<std::mutex> guard(print_mutex);
+		HANDLE hStdout = GetStdHandle(STD_ERROR_HANDLE);
+		SetConsoleTextAttribute(hStdout, color);
+		(*stdio) << str();
+		SetConsoleTextAttribute(hStdout, DEFAULT_COLOR);
+	}
+};
+
+unique_ptr<Log> Log::getLog(Level level)
+{
+	switch (level)
+	{
+	case Level::ERR:
+		return std::move(unique_ptr<Log>(new ColorStream<&std::cerr, FOREGROUND_RED | FOREGROUND_INTENSITY>()));
+	case Level::WARN:
+		return std::move(unique_ptr<Log>(new ColorStream<&cout, FOREGROUND_YELLOW | FOREGROUND_INTENSITY>()));
+	case Level::INFO:
+		return std::move(unique_ptr<Log>(new ColorStream<&cout, FOREGROUND_BLUE | FOREGROUND_INTENSITY>()));
+	case Level::UT:
+		return std::move(unique_ptr<Log>(new Log())); // unused
+	case Level::BOLD:
+		return std::move(unique_ptr<Log>(new ColorStream<&cout, FOREGROUND_GREEN | FOREGROUND_INTENSITY>()));
+	default:
+		return std::move(unique_ptr<Log>(new ColorStream<&std::cout, FOREGROUND_GREEN>()));
+	}
+}
+
 const char *AUTOLOAD_FOLDER()
 {
 	return _strdup((GetCWD() + "\\AutoLoad\\").c_str());

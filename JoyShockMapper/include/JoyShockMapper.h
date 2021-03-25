@@ -4,6 +4,7 @@
 
 #include <map>
 #include <functional>
+#include <sstream>
 
 // This header file is meant to be included among all core JSM source files
 // And as such it should contain only constants, types and functions related to them
@@ -459,7 +460,7 @@ struct KeyCode
 		return code != 0;
 	}
 
-	inline bool operator==(const KeyCode &rhs)
+	inline bool operator==(const KeyCode &rhs) const
 	{
 		return code == rhs.code && name == rhs.name;
 	}
@@ -498,106 +499,11 @@ struct GyroSettings
 	GyroIgnoreMode ignore_mode = GyroIgnoreMode::BUTTON;
 };
 
-// The list of different function that can be bound in the mapping
-class EventActionIf
-{
-public:
-	typedef function<void(EventActionIf *)> Callback;
-
-	virtual void RegisterInstant(BtnEvent evt) = 0;
-	virtual void ApplyGyroAction(KeyCode gyroAction) = 0;
-	virtual void RemoveGyroAction() = 0;
-	virtual void SetRumble(int smallRumble, int bigRumble) = 0;
-	virtual void ApplyBtnPress(KeyCode key) = 0;
-	virtual void ApplyBtnRelease(KeyCode key) = 0;
-	virtual void ApplyButtonToggle(KeyCode key, Callback apply, Callback release) = 0;
-	virtual void StartCalibration() = 0;
-	virtual void FinishCalibration() = 0;
-	virtual const char *getDisplayName() = 0;
-};
-
-// This structure handles the mapping of a button, buy processing and action
-// to be done on tap, hold, turbo and others. It holds a map of actions to perform
-// when a specific event happens. This replaces the old Mapping structure.
-class Mapping
-{
-public:
-	enum class ActionModifier
-	{
-		None,
-		Toggle,
-		Instant,
-		INVALID
-	};
-	enum class EventModifier
-	{
-		None,
-		StartPress,
-		ReleasePress,
-		TurboPress,
-		TapPress,
-		HoldPress,
-		INVALID
-	};
-
-	// Identifies having no binding mapped
-	static const Mapping NO_MAPPING;
-
-	// This functor nees to be set to way to validate a command line string;
-	static function<bool(in_string)> _isCommandValid;
-
-	string _description = "no input";
-	string _command;
-
-private:
-	map<BtnEvent, EventActionIf::Callback> _eventMapping;
-	float _tapDurationMs = MAGIC_TAP_DURATION;
-	bool _hasViGEmBtn = false;
-
-	void InsertEventMapping(BtnEvent evt, EventActionIf::Callback action);
-	static void RunBothActions(EventActionIf *btn, EventActionIf::Callback action1, EventActionIf::Callback action2);
-
-public:
-	Mapping() = default;
-
-	Mapping(in_string mapping);
-
-	Mapping(int dummy)
-	  : Mapping()
-	{
-	}
-
-	void ProcessEvent(BtnEvent evt, EventActionIf &button) const;
-
-	bool AddMapping(KeyCode key, EventModifier evtMod, ActionModifier actMod = ActionModifier::None);
-
-	inline bool isValid() const
-	{
-		return !_eventMapping.empty();
-	}
-
-	inline float getTapDuration() const
-	{
-		return _tapDurationMs;
-	}
-
-	inline void clear()
-	{
-		_eventMapping.clear();
-		_description.clear();
-		_tapDurationMs = MAGIC_TAP_DURATION;
-		_hasViGEmBtn = false;
-	}
-
-	inline bool hasViGEmBtn() const
-	{
-		return _hasViGEmBtn;
-	}
-};
+class Mapping;
 
 // This function is defined in main.cpp. It enables two sim press variables to
 // listen to each other and make sure they both hold the same values.
-void SimPressCrossUpdate(ButtonID sim, ButtonID origin, Mapping newVal);
+void SimPressCrossUpdate(ButtonID sim, ButtonID origin, const Mapping &newVal);
 
 // This operator enables reading any enum from string
 template<class E, class = std::enable_if_t<std::is_enum<E>{}>>
@@ -620,31 +526,26 @@ ostream &operator<<(ostream &out, E rhv)
 
 // The following operators enable reading and writing JSM's custom
 // types to and from string, or handles exceptions
+ostream &operator<<(ostream &out, const KeyCode &code);
+// operator >>() is nameToKey()?!?
+
 istream &operator>>(istream &in, ButtonID &rhv);
-ostream &operator<<(ostream &out, ButtonID rhv);
+ostream &operator<<(ostream &out, const ButtonID &rhv);
 
 istream &operator>>(istream &in, FlickSnapMode &fsm);
-ostream &operator<<(ostream &out, FlickSnapMode fsm);
+ostream &operator<<(ostream &out, const FlickSnapMode &fsm);
 
 istream &operator>>(istream &in, TriggerMode &tm); // Handle L2 / R2
 
 istream &operator>>(istream &in, GyroSettings &gyro_settings);
-ostream &operator<<(ostream &out, GyroSettings gyro_settings);
+ostream &operator<<(ostream &out, const GyroSettings &gyro_settings);
 bool operator==(const GyroSettings &lhs, const GyroSettings &rhs);
 inline bool operator!=(const GyroSettings &lhs, const GyroSettings &rhs)
 {
 	return !(lhs == rhs);
 }
 
-istream &operator>>(istream &in, Mapping &mapping);
-ostream &operator<<(ostream &out, Mapping mapping);
-bool operator==(const Mapping &lhs, const Mapping &rhs);
-inline bool operator!=(const Mapping &lhs, const Mapping &rhs)
-{
-	return !(lhs == rhs);
-}
-
-ostream &operator<<(ostream &out, FloatXY fxy);
+ostream &operator<<(ostream &out, const FloatXY &fxy);
 istream &operator>>(istream &in, FloatXY &fxy);
 bool operator==(const FloatXY &lhs, const FloatXY &rhs);
 inline bool operator!=(const FloatXY &lhs, const FloatXY &rhs)
@@ -653,7 +554,7 @@ inline bool operator!=(const FloatXY &lhs, const FloatXY &rhs)
 }
 
 istream &operator>>(istream &in, Color &color);
-ostream &operator<<(ostream &out, Color color);
+ostream &operator<<(ostream &out, const Color &color);
 bool operator==(const Color &lhs, const Color &rhs);
 inline bool operator!=(const Color &lhs, const Color &rhs)
 {
@@ -665,10 +566,32 @@ istream &operator>>(istream &in, AxisMode &am);
 
 istream &operator>>(istream &in, PathString &fxy);
 
+class Log : public stringstream
+{
+public:
+	enum Level
+	{
+		UT,
+		BASE,
+		BOLD,
+		INFO,
+		WARN,
+		ERR,
+	};
+
+	virtual ~Log() { }
+	static unique_ptr<Log> getLog(Level level);
+
+protected:
+	Log() = default;
+};
+
 // This trickery doesn't work in Linux does it? :(
-#define CERR ColorStream<&std::cerr, FOREGROUND_RED | FOREGROUND_INTENSITY>()
-#define COUT ColorStream<&std::cout, FOREGROUND_GREEN>()
-#define COUT_INFO ColorStream<&cout, FOREGROUND_BLUE | FOREGROUND_INTENSITY>()
-#define COUT_WARN ColorStream<&cout, FOREGROUND_YELLOW | FOREGROUND_INTENSITY>()
+#define CERR (*Log::getLog(Log::Level::ERR))
+#define COUT (*Log::getLog(Log::Level::BASE))
+#define COUT_INFO (*Log::getLog(Log::Level::INFO))
+#define COUT_WARN (*Log::getLog(Log::Level::WARN))
+#define DEBUG (*Log::getLog(Log::Level::UT))
+#define COUT_BOLD (*Log::getLog(Log::Level::BOLD))
 
 bool do_RECONNECT_CONTROLLERS(in_string arguments);

@@ -15,7 +15,7 @@ enable_testing()
 ##############
 # Unit Tests
 ##############
-add_executable(runUnitTests testRegression.cpp 
+add_executable(runUnitTests testRegression.cpp
     ../src/main.cpp
     ../src/operators.cpp
     ../src/CmdRegistry.cpp
@@ -23,11 +23,15 @@ add_executable(runUnitTests testRegression.cpp
     ../src/ButtonHelp.cpp
 	../src/GamepadMotion.cpp
 	../src/DigitalButton.cpp
-    ../src/win32/PlatformDefinitions.cpp
+	../src/Mapping.cpp
+	../src/win32/PlatformDefinitions.cpp
+	../include/JoyShockMapper.h
+	../Include/Mapping.h
 	mockGamepad.hpp
 	mockJslWrapper.hpp
 	mockWhitelister.hpp
 	mockInputHelpers.hpp
+	mockLog.hpp
 )
 
 # Include the gtest library. gtest_SOURCE_DIR is available due to
@@ -40,6 +44,34 @@ include_directories( ../include
 
 # Standard linking to gtest stuff.
 target_link_libraries(runUnitTests gtest gmock gmock_main magic_enum pocket_fsm Platform::Dependencies)
+
+
+# testDigitalButton
+add_executable(testDigitalButton
+    testDigitalButton.cpp
+#    ../src/operators.cpp
+	../src/DigitalButton.cpp
+	../src/Mapping.cpp
+	../src/GamepadMotion.cpp
+	../src/operators.cpp
+	../include/JoyShockMapper.h
+	../include/Mapping.h
+	../include/GamepadMotion.h
+	mockGamepad.hpp
+	mockInputHelpers.hpp
+)
+
+# Include the gtest library. gtest_SOURCE_DIR is available due to
+# 'project(gtest)' above.
+include_directories( ../include
+	${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR}
+	${gmock_SOURCE_DIR}/include ${gmock_SOURCE_DIR}
+	"${PROJECT_BINARY_DIR}/${PROJECT_NAME}/include"
+)
+
+# Standard linking to gtest stuff.
+target_link_libraries(testDigitalButton gtest gmock gmock_main magic_enum pocket_fsm Platform::Dependencies)
+
 
 
 # This is so you can do 'make test' to see all your tests run, instead of

@@ -351,7 +351,7 @@ void DigitalButtonState::changeState(BtnState next)
 void DigitalButtonState::react(OnEntry &e)
 {
 	// Uncomment below to diplay a log each time a button changes state
-	// COUT << "Button " << pimpl()->_id << " is now in state " << _name << endl;
+	DEBUG << "Button " << pimpl()->_id << " is now in state " << _name << endl;
 }
 
 // Basic Press reaction should be called in every concrete Press reaction

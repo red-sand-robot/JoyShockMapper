@@ -21,6 +21,7 @@ add_executable (
     src/ButtonHelp.cpp
 	src/DigitalButton.cpp
 	src/GamepadMotion.cpp
+	src/Mapping.cpp
     include/InputHelpers.h
     include/PlatformDefinitions.h
     include/TrayIcon.h
@@ -35,6 +36,7 @@ add_executable (
 	include/Gamepad.h
 	include/DigitalButton.h
 	include/JslWrapper.h
+	include/Mapping.h
 )
 
 if (WINDOWS)
