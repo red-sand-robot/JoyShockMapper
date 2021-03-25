@@ -4,41 +4,31 @@
 #include "gmock/gmock.h"
 #include <iostream>
 
-class MockLog : public Log
+class MockLog : public stringbuf
 {
-	Level _lvl;
-
-public:
-	MockLog(Level lvl)
-	  : _lvl(lvl)
-	{
-	}
-
 	~MockLog()
 	{
-		if (!str().empty())
+		std::cout << str();
+		if (MockLog::_logger->_lvl > Log::UT)
 		{
-			std::cout << str();
-			if (_lvl != Level::UT)
-			{
-				_logger->print(_lvl, str());
-			}
+			MockLog::_logger->print(MockLog::_logger->_lvl, str());
 		}
 	}
 
+public:
 	struct Inst
 	{
+		Log::Level _lvl;
 		MOCK_METHOD(void, print, (int, in_string));
 	};
 
 	static unique_ptr<Inst> _logger;
 };
 
-unique_ptr<MockLog::Inst> MockLog::_logger = nullptr;
-
-unique_ptr<Log> Log::getLog(Level lvl)
+streambuf *Log::makeBuffer(Level level)
 {
-	unique_ptr<Log> ptr(new MockLog(lvl));
-	return std::move(ptr);
-	//return std::move(make_unique<MockLog>(lvl));
+	MockLog::_logger->_lvl = level;
+	return new MockLog();
 }
+
+unique_ptr<MockLog::Inst> MockLog::_logger = nullptr;

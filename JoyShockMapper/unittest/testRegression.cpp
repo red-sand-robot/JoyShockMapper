@@ -26,12 +26,6 @@ TrayIcon* TrayIcon::getNew(TrayIconData applicationName, std::function<void()>&&
 	return nullptr; // Disable tray icon
 }
 
-//Gamepad*
-//Gamepad::getNew(ControllerScheme scheme, Callback notification)
-//{
-//	return nullptr; // Disable Gamepad output
-//}
-
 class Regression : public Test
 {
 protected:

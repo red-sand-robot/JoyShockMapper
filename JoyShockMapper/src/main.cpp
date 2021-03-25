@@ -131,11 +131,11 @@ public:
 	TouchStick(int index, shared_ptr<DigitalButton::Common> common, int handle, GamepadMotion *motion)
 	  : _index(index)
 	{
-		buttons.reserve(5);
-		for (ButtonID id = ButtonID(FIRST_TOUCH_BUTTON); id <= ButtonID::TRING; id = ButtonID(int(id) + 1))
+		size_t noTouchBtn = std::min(size_t(5), touch_buttons.size());
+		buttons.reserve(noTouchBtn);
+		for (int i = FIRST_TOUCH_BUTTON; i < noTouchBtn; ++i)
 		{
-			JSMButton &map(id < ButtonID::SIZE ? mappings[int(id)] : touch_buttons[int(id) - FIRST_TOUCH_BUTTON]);
-			buttons.push_back(DigitalButton(common, map));
+			buttons.push_back(DigitalButton(common, touch_buttons[i - FIRST_TOUCH_BUTTON]));
 		}
 	}
 
@@ -371,8 +371,7 @@ public:
 		buttons.reserve(mappings.size());
 		for (int i = 0; i < mappings.size(); ++i)
 		{
-			JSMButton &map(i < MAPPING_SIZE ? mappings[i] : touch_buttons[i - FIRST_TOUCH_BUTTON]);
-			buttons.push_back(DigitalButton(btnCommon, map));
+			buttons.push_back(DigitalButton(btnCommon, mappings[i]));
 		}
 		ResetSmoothSample();
 		if (!CheckVigemState())
@@ -1142,14 +1141,14 @@ public:
 
 	void updateGridSize(size_t numberOfButtons)
 	{
-		numberOfButtons = numberOfButtons - 5; // Don't include touch stick buttons
+		numberOfButtons = min(size_t(0), min(touch_buttons.size(), numberOfButtons) - 5); // Don't include touch stick buttons
 
 		while (gridButtons.size() > numberOfButtons)
 			gridButtons.pop_back();
 
-		for (int i = int(ButtonID::T1) + gridButtons.size(); gridButtons.size() < numberOfButtons; ++i)
+		for (int i = 0; i < numberOfButtons; ++i)
 		{
-			JSMButton &map(touch_buttons[i - FIRST_TOUCH_BUTTON]);
+			JSMButton &map(touch_buttons[i + 5]);
 			gridButtons.push_back(DigitalButton(btnCommon, map));
 		}
 	}

@@ -5,7 +5,7 @@
 #include "InputHelpers.h"
 
 template<std::ostream *stdio, uint16_t color>
-class ColorStream : public Log
+class ColorStream : public stringbuf
 {
 public:
 	ColorStream() { }
@@ -20,22 +20,22 @@ public:
 	}
 };
 
-unique_ptr<Log> Log::getLog(Level level)
+streambuf *Log::makeBuffer(Level level)
 {
 	switch (level)
 	{
 	case Level::ERR:
-		return std::move(unique_ptr<Log>(new ColorStream<&std::cerr, FOREGROUND_RED | FOREGROUND_INTENSITY>()));
+		return new ColorStream<&std::cerr, FOREGROUND_RED | FOREGROUND_INTENSITY>();
 	case Level::WARN:
-		return std::move(unique_ptr<Log>(new ColorStream<&cout, FOREGROUND_YELLOW | FOREGROUND_INTENSITY>()));
+		return new ColorStream<&cout, FOREGROUND_YELLOW | FOREGROUND_INTENSITY>();
 	case Level::INFO:
-		return std::move(unique_ptr<Log>(new ColorStream<&cout, FOREGROUND_BLUE | FOREGROUND_INTENSITY>()));
+		return new ColorStream<&cout, FOREGROUND_BLUE | FOREGROUND_INTENSITY>();
 	case Level::UT:
-		return std::move(unique_ptr<Log>(new Log())); // unused
+		return new NullBuffer(); // unused
 	case Level::BOLD:
-		return std::move(unique_ptr<Log>(new ColorStream<&cout, FOREGROUND_GREEN | FOREGROUND_INTENSITY>()));
+		return new ColorStream<&cout, FOREGROUND_GREEN | FOREGROUND_INTENSITY>();
 	default:
-		return std::move(unique_ptr<Log>(new ColorStream<&std::cout, FOREGROUND_GREEN>()));
+		return new ColorStream<&std::cout, FOREGROUND_GREEN>();
 	}
 }
 

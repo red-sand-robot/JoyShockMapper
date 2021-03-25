@@ -566,7 +566,7 @@ istream &operator>>(istream &in, AxisMode &am);
 
 istream &operator>>(istream &in, PathString &fxy);
 
-class Log : public stringstream
+class Log
 {
 public:
 	enum Level
@@ -579,19 +579,37 @@ public:
 		ERR,
 	};
 
-	virtual ~Log() { }
-	static unique_ptr<Log> getLog(Level level);
-
 protected:
-	Log() = default;
+	// https://stackoverflow.com/questions/11826554/standard-no-op-output-stream
+	class NullBuffer : public std::streambuf
+	{
+	public:
+		int overflow(int c) override
+		{
+			return c;
+		}
+	};
+	unique_ptr<streambuf> _buf;
+
+	static streambuf *makeBuffer(Level level);
+
+public:
+	Log(Level level)
+	  : _buf(makeBuffer(level))
+	  , _str(_buf.get())
+	{
+	}
+	~Log() { }
+
+	ostream _str;
 };
 
 // This trickery doesn't work in Linux does it? :(
-#define CERR (*Log::getLog(Log::Level::ERR))
-#define COUT (*Log::getLog(Log::Level::BASE))
-#define COUT_INFO (*Log::getLog(Log::Level::INFO))
-#define COUT_WARN (*Log::getLog(Log::Level::WARN))
-#define DEBUG (*Log::getLog(Log::Level::UT))
-#define COUT_BOLD (*Log::getLog(Log::Level::BOLD))
+#define CERR Log(Log::Level::ERR)._str
+#define COUT Log(Log::Level::BASE)._str
+#define COUT_INFO Log(Log::Level::INFO)._str
+#define COUT_WARN Log(Log::Level::WARN)._str
+#define DEBUG Log(Log::Level::UT)._str
+#define COUT_BOLD Log(Log::Level::BOLD)._str
 
 bool do_RECONNECT_CONTROLLERS(in_string arguments);
