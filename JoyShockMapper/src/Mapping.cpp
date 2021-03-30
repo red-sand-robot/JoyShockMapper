@@ -196,6 +196,24 @@ bool Mapping::AddMapping(KeyCode key, EventModifier evtMod, ActionModifier actMo
 	}
 
 	BtnEvent applyEvt, releaseEvt;
+	switch (actMod)
+	{
+	case ActionModifier::Toggle:
+		apply = bind(&EventActionIf::ApplyButtonToggle, placeholders::_1, key, apply, release);
+		release = EventActionIf::Callback();
+		break;
+	case ActionModifier::Instant:
+	{
+		EventActionIf::Callback action2 = bind(&EventActionIf::RegisterInstant, placeholders::_1, applyEvt);
+		apply = bind(&Mapping::RunBothActions, placeholders::_1, apply, action2);
+		releaseEvt = BtnEvent::OnInstantRelease;
+	}
+	break;
+	case ActionModifier::INVALID:
+		return false;
+		// None applies no modification... Hey!
+	}
+
 	switch (evtMod)
 	{
 	case EventModifier::StartPress:
@@ -218,27 +236,10 @@ bool Mapping::AddMapping(KeyCode key, EventModifier evtMod, ActionModifier actMo
 	case EventModifier::TurboPress:
 		applyEvt = BtnEvent::OnTurbo;
 		releaseEvt = BtnEvent::OnTurbo;
+		InsertEventMapping(BtnEvent::OnRelease, release); // On turbo you also need to clear the turbo on release
 		break;
 	default: // EventModifier::INVALID or None
 		return false;
-	}
-
-	switch (actMod)
-	{
-	case ActionModifier::Toggle:
-		apply = bind(&EventActionIf::ApplyButtonToggle, placeholders::_1, key, apply, release);
-		release = EventActionIf::Callback();
-		break;
-	case ActionModifier::Instant:
-	{
-		EventActionIf::Callback action2 = bind(&EventActionIf::RegisterInstant, placeholders::_1, applyEvt);
-		apply = bind(&Mapping::RunBothActions, placeholders::_1, apply, action2);
-		releaseEvt = BtnEvent::OnInstantRelease;
-	}
-	break;
-	case ActionModifier::INVALID:
-		return false;
-		// None applies no modification... Hey!
 	}
 
 	// Insert release first because in turbo's case apply and release are the same but we want release to apply first

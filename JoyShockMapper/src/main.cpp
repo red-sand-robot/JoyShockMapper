@@ -133,9 +133,9 @@ public:
 	{
 		size_t noTouchBtn = std::min(size_t(5), touch_buttons.size());
 		buttons.reserve(noTouchBtn);
-		for (int i = FIRST_TOUCH_BUTTON; i < noTouchBtn; ++i)
+		for (int i = 0; i < noTouchBtn; ++i)
 		{
-			buttons.push_back(DigitalButton(common, touch_buttons[i - FIRST_TOUCH_BUTTON]));
+			buttons.push_back(DigitalButton(common, touch_buttons[i]));
 		}
 	}
 
@@ -151,53 +151,105 @@ class ScrollAxis
 {
 protected:
 	float _leftovers;
-	ButtonID _negativeId;
-	ButtonID _positiveId;
-	const int _touchpadId;
-	JoyShock *_js;
-
-	bool _pressed;
+	DigitalButton *_negativeButton;
+	DigitalButton *_positiveButton;
+	int _touchpadId;
+	ButtonID _pressedBtn;
 
 public:
 	static function<void(JoyShock *, ButtonID, int, bool)> _handleButtonChange;
 
-	ScrollAxis(JoyShock *js, ButtonID negativeId, ButtonID positiveId, int touchpadId = -1)
+	ScrollAxis()
 	  : _leftovers(0.f)
-	  , _negativeId(negativeId)
-	  , _positiveId(positiveId)
-	  , _touchpadId(touchpadId)
-	  , _pressed(false)
-	  , _js(js)
+	  , _negativeButton(nullptr)
+	  , _positiveButton(nullptr)
+	  , _touchpadId(-1)
+	  , _pressedBtn(ButtonID::NONE)
 	{
 	}
 
-	void ProcessScroll(float distance, float sens)
+	void init(DigitalButton &negativeBtn, DigitalButton &positiveBtn, int touchpadId = -1)
 	{
+		_negativeButton = &negativeBtn;
+		_positiveButton = &positiveBtn;
+		_touchpadId = touchpadId;
+	}
+
+	void ProcessScroll(float distance, float sens, chrono::steady_clock::time_point now)
+	{
+		if (!_negativeButton || !_negativeButton)
+			return; // not initalized!
+
 		_leftovers += distance;
 		if (distance != 0)
-			COUT << "[" << _negativeId << "," << _positiveId << "] moved " << distance << " so that leftover is now " << _leftovers << endl;
+			COUT << " leftover is now " << _leftovers << endl;
+		//"[" << _negativeId << "," << _positiveId << "] moved " << distance << " so that
 
-		if (!_pressed && fabsf(_leftovers) > sens)
+		Pressed isPressed;
+		isPressed.time_now = now;
+		isPressed.turboTime = 50;
+		isPressed.holdTime = 150;
+		Released isReleased;
+		isReleased.time_now = now;
+		isReleased.turboTime = 50;
+		isReleased.holdTime = 150;
+		if (_pressedBtn != ButtonID::NONE)
 		{
-			_handleButtonChange(_js, _negativeId, _touchpadId, _leftovers > 0);
-			_handleButtonChange(_js, _positiveId, _touchpadId, _leftovers < 0);
+			float pressedTime = 0;
+			if (_pressedBtn == _negativeButton->_id)
+			{
+				pressedTime = _negativeButton->sendEvent(GetDuration{ now }).out_duration;
+				if (pressedTime < MAGIC_TAP_DURATION)
+				{
+					_negativeButton->sendEvent(isPressed);
+					_positiveButton->sendEvent(isReleased);
+					return;
+				}
+			}
+			else // _pressedBtn == _positiveButton->_id
+			{
+				pressedTime = _positiveButton->sendEvent(GetDuration{ now }).out_duration;
+				if (pressedTime < MAGIC_TAP_DURATION)
+				{
+					_negativeButton->sendEvent(isReleased);
+					_positiveButton->sendEvent(isPressed);
+					return;
+				}
+			}
+			// pressed time > TAP_DURATION meaning release the tap
+			_negativeButton->sendEvent(isReleased);
+			_positiveButton->sendEvent(isReleased);
+			_pressedBtn = ButtonID::NONE;
+		}
+		else if (fabsf(_leftovers) > sens)
+		{
+			if (_leftovers > 0)
+			{
+				_negativeButton->sendEvent(isPressed);
+				_positiveButton->sendEvent(isReleased);
+				_pressedBtn = _negativeButton->_id;
+			}
+			else
+			{
+				_negativeButton->sendEvent(isReleased);
+				_positiveButton->sendEvent(isPressed);
+				_pressedBtn = _positiveButton->_id;
+			}
 			_leftovers = _leftovers > 0 ? _leftovers - sens : _leftovers + sens;
-			_pressed = true;
 		}
-		else
-		{
-			_handleButtonChange(_js, _negativeId, _touchpadId, false);
-			_handleButtonChange(_js, _positiveId, _touchpadId, false);
-			_pressed = false;
-		}
+		// else do nothing and accumulate leftovers
 	}
 
-	void Reset()
+	void Reset(chrono::steady_clock::time_point now)
 	{
 		_leftovers = 0;
-		_handleButtonChange(_js, _negativeId, _touchpadId, false);
-		_handleButtonChange(_js, _positiveId, _touchpadId, false);
-		_pressed = false;
+		Released isReleased;
+		isReleased.time_now = now;
+		isReleased.turboTime = 50;
+		isReleased.holdTime = 150;
+		_negativeButton->sendEvent(isReleased);
+		_positiveButton->sendEvent(isReleased);
+		_pressedBtn = ButtonID::NONE;
 	}
 };
 
@@ -347,14 +399,7 @@ public:
 	  , platform_controller_type(jsl->GetControllerType(uniqueHandle))
 	  , triggerState(NUM_ANALOG_TRIGGERS, DstState::NoPress)
 	  , prevTriggerPosition(NUM_ANALOG_TRIGGERS, deque<float>(MAGIC_TRIGGER_SMOOTHING, 0.f))
-	  , buttons()
-	  , gridButtons()
-	  , touchpads()
-	  , right_scroll(this, ButtonID::RLEFT, ButtonID::RRIGHT)
-	  , left_scroll(this, ButtonID::LLEFT, ButtonID::LRIGHT)
 	  , _light_bar(*light_bar.get())
-	  , touch_scroll_x(this, ButtonID::TLEFT, ButtonID::TRIGHT, 0)
-	  , touch_scroll_y(this, ButtonID::TDOWN, ButtonID::TUP, 0)
 	  , btnCommon(sharedButtonCommon)
 	{
 		if (!sharedButtonCommon)
@@ -373,6 +418,8 @@ public:
 		{
 			buttons.push_back(DigitalButton(btnCommon, mappings[i]));
 		}
+		right_scroll.init(buttons[int(ButtonID::RLEFT)], buttons[int(ButtonID::RRIGHT)]);
+		left_scroll.init(buttons[int(ButtonID::LLEFT)], buttons[int(ButtonID::LRIGHT)]);
 		ResetSmoothSample();
 		if (!CheckVigemState())
 		{
@@ -383,6 +430,8 @@ public:
 		{
 			touchpads.push_back(TouchStick(i, btnCommon, handle, &motion));
 		}
+		touch_scroll_x.init(touchpads[0].buttons[int(ButtonID::TLEFT) - FIRST_TOUCH_BUTTON], touchpads[0].buttons[int(ButtonID::TRIGHT) - FIRST_TOUCH_BUTTON]);
+		touch_scroll_y.init(touchpads[0].buttons[int(ButtonID::TUP) - FIRST_TOUCH_BUTTON], touchpads[0].buttons[int(ButtonID::TDOWN) - FIRST_TOUCH_BUTTON]);
 		updateGridSize(grid_size.get().x() * grid_size.get().y() + 5);
 		prevTouchState.t0Down = false;
 		prevTouchState.t1Down = false;
@@ -404,7 +453,7 @@ public:
 	{
 		if (getSetting<Switch>(SettingID::RUMBLE) == Switch::ON)
 		{
-			COUT << "Rumbling at " << smallRumble << " and " << bigRumble << endl;
+			//COUT << "Rumbling at " << smallRumble << " and " << bigRumble << endl;
 			jsl->SetRumble(handle, smallRumble, bigRumble);
 		}
 	}
@@ -430,11 +479,11 @@ public:
 
 	void handleViGEmNotification(UCHAR largeMotor, UCHAR smallMotor, Indicator indicator)
 	{
-		static chrono::steady_clock::time_point last_call;
-		auto now = chrono::steady_clock::now();
-		auto diff = ((float)chrono::duration_cast<chrono::microseconds>(now - last_call).count()) / 1000000.0f;
-		last_call = now;
-		COUT_INFO << "Time since last vigem rumble is " << diff << " us" << endl;
+		//static chrono::steady_clock::time_point last_call;
+		//auto now = chrono::steady_clock::now();
+		//auto diff = ((float)chrono::duration_cast<chrono::microseconds>(now - last_call).count()) / 1000000.0f;
+		//last_call = now;
+		//COUT_INFO << "Time since last vigem rumble is " << diff << " us" << endl;
 		lock_guard guard(this->btnCommon->callback_lock);
 		switch (platform_controller_type)
 		{
@@ -1139,14 +1188,14 @@ public:
 		return false;
 	}
 
-	void updateGridSize(size_t numberOfButtons)
+	void updateGridSize(size_t noTouchBtns)
 	{
-		numberOfButtons = min(size_t(0), min(touch_buttons.size(), numberOfButtons) - 5); // Don't include touch stick buttons
+		int noGridBtns = max(size_t(0), min(touch_buttons.size(), noTouchBtns) - 5); // Don't include touch stick buttons
 
-		while (gridButtons.size() > numberOfButtons)
+		while (gridButtons.size() > noGridBtns)
 			gridButtons.pop_back();
 
-		for (int i = 0; i < numberOfButtons; ++i)
+		for (int i = 0; i < noGridBtns; ++i)
 		{
 			JSMButton &map(touch_buttons[i + 5]);
 			gridButtons.push_back(DigitalButton(btnCommon, map));
@@ -1767,7 +1816,7 @@ void processStick(shared_ptr<JoyShock> jc, float stickX, float stickY, float las
 		{
 			if (stickX == 0 && stickY == 0)
 			{
-				scroll->Reset();
+				scroll->Reset(jc->time_now);
 			}
 			else if (lastX != 0 && lastY != 0)
 			{
@@ -1778,7 +1827,7 @@ void processStick(shared_ptr<JoyShock> jc, float stickX, float stickY, float las
 					lastAngle = lastAngle > 0 ? lastAngle - 360.f : lastAngle + 360.f;
 				}
 				//COUT << "Stick moved from " << lastAngle << " to " << angle; // << endl;
-				scroll->ProcessScroll(angle - lastAngle, jc->getSetting<FloatXY>(SettingID::SCROLL_SENS).x());
+				scroll->ProcessScroll(angle - lastAngle, jc->getSetting<FloatXY>(SettingID::SCROLL_SENS).x(), jc->time_now);
 			}
 		}
 	}
@@ -1967,19 +2016,23 @@ void TouchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 				y = fabsf(js->prevTouchState.t0Y - js->prevTouchState.t1Y);
 				float oldAngle = atan2f(y, x) / PI * 360;
 				float oldDist = sqrt(x * x + y * y);
-				js->touch_scroll_x.ProcessScroll(angle - oldAngle, js->getSetting<FloatXY>(SettingID::SCROLL_SENS).x());
-				js->touch_scroll_y.ProcessScroll(dist - oldDist, js->getSetting<FloatXY>(SettingID::SCROLL_SENS).y());
+				if (angle != oldAngle)
+					COUT << "Angle went from " << oldAngle << " degrees to " << angle << " degress. Diff is " << angle - oldAngle << " degrees. ";
+				js->touch_scroll_x.ProcessScroll(angle - oldAngle, js->getSetting<FloatXY>(SettingID::SCROLL_SENS).x(), js->time_now);
+				if (dist != oldDist)
+					COUT << "Dist went from " << oldDist << " points to " << dist << " points. Diff is " << dist - oldDist << " points. ";
+				js->touch_scroll_y.ProcessScroll(dist - oldDist, js->getSetting<FloatXY>(SettingID::SCROLL_SENS).y(), js->time_now);
 			}
 			else
 			{
-				js->touch_scroll_x.Reset();
-				js->touch_scroll_y.Reset();
+				js->touch_scroll_x.Reset(js->time_now);
+				js->touch_scroll_y.Reset(js->time_now);
 			}
 		}
 		else
 		{
-			js->touch_scroll_x.Reset();
-			js->touch_scroll_y.Reset();
+			js->touch_scroll_x.Reset(js->time_now);
+			js->touch_scroll_y.Reset(js->time_now);
 			if (point0.isDown() ^ point1.isDown()) // XOR
 			{
 				TOUCH_POINT *downPoint = point0.isDown() ? &point0 : &point1;
@@ -2126,7 +2179,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		float lastCalX = jc->lastLX;
 		float lastCalY = jc->lastLY;
 		float calX = jsl->GetLeftX(jc->handle);
-		float calY = -jsl->GetLeftY(jc->handle);
+		float calY = jsl->GetLeftY(jc->handle);
 
 		jc->lastLX = calX;
 		jc->lastLY = calY;
@@ -2142,7 +2195,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		float lastCalX = jc->lastRX;
 		float lastCalY = jc->lastRY;
 		float calX = jsl->GetRightX(jc->handle);
-		float calY = -jsl->GetRightY(jc->handle);
+		float calY = jsl->GetRightY(jc->handle);
 
 		jc->lastRX = calX;
 		jc->lastRY = calY;

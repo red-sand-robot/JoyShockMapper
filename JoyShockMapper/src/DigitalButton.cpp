@@ -450,7 +450,6 @@ class TapRelease : public DigitalButtonState
 		pimpl()->CheckInstantRelease(BtnEvent::OnRelease);
 		pimpl()->CheckInstantRelease(BtnEvent::OnTap);
 		pimpl()->GetPressMapping()->ProcessEvent(BtnEvent::OnTapRelease, *pimpl());
-		changeState<NoPress>();
 		pimpl()->ClearKey();
 	}
 
@@ -463,7 +462,7 @@ class TapRelease : public DigitalButtonState
 			pimpl()->CheckInstantRelease(BtnEvent::OnRelease);
 			pimpl()->CheckInstantRelease(BtnEvent::OnTap);
 		}
-		if (pimpl()->GetPressDurationMS(e.time_now) > pimpl()->_keyToRelease->getTapDuration())
+		if (!pimpl()->_keyToRelease || pimpl()->GetPressDurationMS(e.time_now) > pimpl()->_keyToRelease->getTapDuration())
 		{
 			pimpl()->GetPressMapping()->ProcessEvent(BtnEvent::OnTapRelease, *pimpl());
 			changeState<NoPress>();
