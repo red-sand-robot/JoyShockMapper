@@ -20,7 +20,8 @@ enum class BtnState
 	BtnPress,
 	TapRelease,
 	WaitSim,
-	SimPress,
+	SimPressMaster,
+	SimPressSlave,
 	SimRelease,
 	DblPressStart,
 	DblPressNoPressTap,
@@ -62,7 +63,6 @@ typedef chrono::steady_clock::time_point SetPressTime;
 // A basic digital button state reacts to the following events
 class DigitalButtonState : public pocket_fsm::StatePimplIF<DigitalButtonImpl>
 {
-	// Define changeState<CONCRETE>() function
 	BASE_STATE(DigitalButtonState)
 
 	// Display logs on entry for debigging
@@ -71,9 +71,7 @@ class DigitalButtonState : public pocket_fsm::StatePimplIF<DigitalButtonImpl>
 
 	// ignored
 	REACT(OnExit)
-	override
-	{
-	}
+	override { }
 
 	// Adds chord to stack if absent
 	REACT(Pressed);
@@ -82,9 +80,7 @@ class DigitalButtonState : public pocket_fsm::StatePimplIF<DigitalButtonImpl>
 	REACT(Released);
 
 	// ignored by default
-	REACT(Sync)
-	{
-	}
+	REACT(Sync) { }
 
 	// Always assign press time
 	REACT(SetPressTime)
@@ -96,10 +92,6 @@ class DigitalButtonState : public pocket_fsm::StatePimplIF<DigitalButtonImpl>
 
 	// Get matching enum value
 	virtual BtnState getState() const = 0;
-
-protected:
-	// call changeState with the matching concrete state name as provided enum
-	void changeState(BtnState next);
 };
 
 // Feed this state machine with Pressed and Released events and it will sort out
@@ -107,8 +99,8 @@ protected:
 class DigitalButton : public pocket_fsm::FiniteStateMachine<DigitalButtonState>
 {
 public:
-	// All digital buttons need a reference to the same instance of a the common structure within the same controller.
-	// It enables the buttons to synchronize and be aware of the state of the whole controller.
+	// All digital buttons need a reference to the same instance of the common structure within the same controller.
+	// It enables the buttons to synchronize and be aware of the state of the whole controller, access gyro etc...
 	struct Common
 	{
 		Common(Gamepad::Callback virtualControllerCallback, GamepadMotion *mainMotion);

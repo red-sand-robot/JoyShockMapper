@@ -207,7 +207,7 @@ target_link_libraries (
 CPMAddPackage (
     NAME pocket_fsm
     GITHUB_REPOSITORY Electronicks/pocket_fsm
-    GIT_TAG master
+    GIT_TAG HFSM
 )
 
 target_link_libraries (
