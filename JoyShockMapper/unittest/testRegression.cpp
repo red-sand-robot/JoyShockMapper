@@ -26,6 +26,12 @@ TrayIcon* TrayIcon::getNew(TrayIconData applicationName, std::function<void()>&&
 	return nullptr; // Disable tray icon
 }
 
+
+bool ClearConsole()
+{
+	return true;
+}
+
 class Regression : public Test
 {
 protected:

@@ -176,3 +176,5 @@ void ReleaseConsole();
 bool IsVisible();
 
 bool isConsoleMinimized();
+
+bool ClearConsole();

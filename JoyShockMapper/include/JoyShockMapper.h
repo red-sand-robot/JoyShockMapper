@@ -5,6 +5,7 @@
 #include <map>
 #include <functional>
 #include <sstream>
+#include <string>
 
 // This header file is meant to be included among all core JSM source files
 // And as such it should contain only constants, types and functions related to them
@@ -249,6 +250,7 @@ enum class SettingID
 	VIRTUAL_CONTROLLER,
 	RUMBLE,
 	TOUCHPAD_DUAL_STAGE_MODE,
+	CLEAR,
 };
 
 // constexpr are like #define but with respect to typeness
@@ -465,7 +467,7 @@ struct KeyCode
 		return code == rhs.code && name == rhs.name;
 	}
 
-	inline bool operator!=(const KeyCode &rhs)
+	inline bool operator!=(const KeyCode &rhs) const
 	{
 		return !operator==(rhs);
 	}

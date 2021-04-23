@@ -13,6 +13,8 @@
 #include <mutex>
 #include <deque>
 #include <iomanip>
+#include <filesystem>
+#include <shellapi.h>
 
 #pragma warning(disable : 4996) // Disable deprecated API warnings
 
@@ -1276,9 +1278,6 @@ static void resetAllMappings()
 	tick_time.Reset();
 	light_bar.Reset();
 	scroll_sens.Reset();
-	autoloadSwitch.Reset();
-	hide_minimized.Reset();
-	virtual_controller.Reset();
 	rumble_enable.Reset();
 	touch_ds_mode.Reset();
 	for_each(touch_buttons.begin(), touch_buttons.end(), [](auto &map) { map.Reset(); });
@@ -1296,7 +1295,7 @@ void connectDevices(bool mergeJoycons = true)
 	{
 		jsl->GetConnectedDeviceHandles(&deviceHandles[0], numConnected);
 
-		for (auto handle : deviceHandles)
+		for (auto handle : deviceHandles) // Don't use foreach!
 		{
 			auto type = jsl->GetControllerSplitType(handle);
 			auto otherJoyCon = find_if(handle_to_joyshock.begin(), handle_to_joyshock.end(),
@@ -2999,6 +2998,9 @@ public:
 int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLine, int cmdShow)
 {
 	auto trayIconData = hInstance;
+	int argc = 0;
+	wchar_t **argv = CommandLineToArgvW(cmdLine, &argc);
+	
 #else
 int main(int argc, char *argv[])
 {
@@ -3021,7 +3023,7 @@ int main(int argc, char *argv[])
 	// console
 	initConsole();
 	COUT_BOLD << "Welcome to JoyShockMapper version " << version << '!' << endl;
-	//if (whitelister && *whitelister) COUT << "JoyShockMapper was successfully whitelisted!" << endl;
+	//if (whitelister) COUT << "JoyShockMapper was successfully whitelisted!" << endl;
 	// Threads need to be created before listeners
 	CmdRegistry commandRegistry;
 	minimizeThread.reset(new PollingThread("Minimize thread", &MinimizePoll, nullptr, 1000, hide_minimized.get() == Switch::ON));          // Start by default
@@ -3029,7 +3031,7 @@ int main(int argc, char *argv[])
 
 	if (autoLoadThread && autoLoadThread->isRunning())
 	{
-		COUT << "AUTOLOAD is enabled. Files in ";
+		COUT << "AUTOLOAD is available. Files in ";
 		COUT_INFO << AUTOLOAD_FOLDER();
 		COUT << " folder will get loaded automatically when a matching application is in focus." << endl;
 	}
@@ -3119,11 +3121,19 @@ int main(int argc, char *argv[])
 	scroll_sens.SetFilter(&filterFloatPair);
 	touch_ds_mode.SetFilter(&filterTouchpadDualStageMode);
 	// light_bar needs no filter or listener. The callback polls and updates the color.
+	for (int i = argc - 1; i >= 0; --i)
+	{
 #if _WIN32
-	currentWorkingDir = string(&cmdLine[0], &cmdLine[wcslen(cmdLine)]);
+		string arg(&argv[i][0], &argv[i][wcslen(argv[i])]);
 #else
-	currentWorkingDir = string(argv[0]);
+		string arg = string(argv[0]);
 #endif
+		if (filesystem::is_directory(filesystem::status(arg)) &&
+			(currentWorkingDir = arg).compare(arg) == 0)
+		{
+				break;
+		}
+	}
 	for (auto &mapping : mappings) // Add all button mappings as commands
 	{
 		commandRegistry.Add((new JSMAssignment<Mapping>(mapping.getName(), mapping))->SetHelp(buttonHelpMap.at(mapping._id)));
@@ -3299,6 +3309,7 @@ int main(int argc, char *argv[])
 	                      ->SetHelp("Disable the rumbling feature from vigem. Valid values are ON and OFF."));
 	commandRegistry.Add((new JSMAssignment<TriggerMode>(touch_ds_mode))
 	                      ->SetHelp("Dual stage mode for the touchpad TOUCH and CAPTURE (i.e. click) bindings."));
+	commandRegistry.Add((new JSMMacro("CLEAR"))->SetMacro(bind(&ClearConsole))->SetHelp("Removes all text in the console screen"));
 
 	bool quit = false;
 	commandRegistry.Add((new JSMMacro("QUIT"))
@@ -3332,6 +3343,20 @@ int main(int argc, char *argv[])
 		COUT << " file to load." << endl;
 	}
 
+	for (int i = 0; i < argc; ++i)
+	{
+#if _WIN32
+		string arg(&argv[i][0], &argv[i][wcslen(argv[i])]);
+#else
+		string arg = string(argv[0]);
+#endif
+		if (filesystem::is_regular_file(filesystem::status(arg)))
+		{
+			commandRegistry.loadConfigFile(arg);
+			autoloadSwitch = Switch::OFF;
+		}
+	}
+
 	// The main loop is simple and reads like pseudocode
 	string enteredCommand;
 	while (!quit)
@@ -3341,6 +3366,7 @@ int main(int argc, char *argv[])
 		commandRegistry.processLine(enteredCommand);
 		loading_lock.unlock();
 	}
+	LocalFree(argv);
 	CleanUp();
 	return 0;
 }

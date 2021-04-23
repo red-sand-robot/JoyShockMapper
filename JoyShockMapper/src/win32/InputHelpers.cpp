@@ -365,3 +365,45 @@ bool isConsoleMinimized()
 {
 	return IsVisible() != FALSE && IsIconic(GetConsoleWindow()) != FALSE;
 }
+
+bool ClearConsole()
+{
+	HANDLE hStdout;
+
+	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	// Fetch existing console mode so we correctly add a flag and not turn off others
+	DWORD mode = 0;
+	if (!GetConsoleMode(hStdout, &mode))
+	{
+		return false;
+	}
+
+	// Hold original mode to restore on exit to be cooperative with other command-line apps.
+	const DWORD originalMode = mode;
+	mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+
+	// Try to set the mode.
+	if (!SetConsoleMode(hStdout, mode))
+	{
+		return false;
+	}
+
+	// Write the sequence for clearing the display.
+	DWORD written = 0;
+	constexpr PCWSTR sequence = L"\x1b[2J\x1b[0;0H"; // Clear screen and move cursor to 0,0
+	if (!WriteConsoleW(hStdout, sequence, lstrlen(sequence), &written, NULL))
+	{
+		// If we fail, try to restore the mode on the way out.
+		SetConsoleMode(hStdout, originalMode);
+		return false;
+	}
+
+	// To also clear the scroll back, emit L"\x1b[3J" as well.
+	// 2J only clears the visible window and 3J only clears the scroll back.
+
+	// Restore the mode on the way out to be nice to other command-line applications.
+	SetConsoleMode(hStdout, originalMode);
+
+	return true;
+}
