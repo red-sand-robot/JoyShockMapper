@@ -251,6 +251,7 @@ class SimPressMaster;
 class SimPressSlave;
 class SimRelease;
 class DblPressStart;
+class DblPressNoPress;
 class DblPressNoPressTap;
 class DblPressNoPressHold;
 class DblPressPress;
@@ -353,11 +354,6 @@ class ActiveStartPress : public ActiveMappingState
 		pimpl()->GetPressMapping()->ProcessEvent(BtnEvent::OnPress, *pimpl());
 	}
 
-	void onExit(chrono::steady_clock::time_point time_now)
-	{
-		pimpl()->_press_times = time_now; // Start counting tap duration
-	}
-
 	REACT(Pressed) override
 	{
 		DigitalButtonState::react(e);
@@ -369,17 +365,17 @@ class ActiveStartPress : public ActiveMappingState
 		}
 		if (elapsed_time > e.holdTime)
 		{
-			changeState<ActiveHoldPress>(bind(&ActiveStartPress::onExit, this, e.time_now));
+			pimpl()->_press_times = e.time_now; // Start counting tap duration
+			changeState<ActiveHoldPress>();
 		}
 	}
 
 	REACT(Released) override
 	{
 		ActiveMappingState::react(e);
-		pimpl()->_keyToRelease->ProcessEvent(BtnEvent::OnRelease, *pimpl());
 		pimpl()->_keyToRelease->ProcessEvent(BtnEvent::OnTap, *pimpl());
-		
-		changeState<TapRelease>(bind(&ActiveStartPress::onExit, this, e.time_now));
+		pimpl()->_press_times = e.time_now; // Start counting tap duration
+		changeState<TapRelease>();
 	}
 
 };
@@ -480,8 +476,7 @@ class TapRelease : public DigitalButtonState
 		DigitalButtonState::react(e);
 		pimpl()->CheckInstantRelease(BtnEvent::OnRelease);
 		pimpl()->CheckInstantRelease(BtnEvent::OnTap);
-		pimpl()->GetPressMapping()->ProcessEvent(BtnEvent::OnTapRelease, *pimpl());
-		pimpl()->ClearKey();
+		changeState<NoPress>();
 	}
 
 	REACT(Released)
@@ -495,10 +490,14 @@ class TapRelease : public DigitalButtonState
 		}
 		if (!pimpl()->_keyToRelease || pimpl()->GetPressDurationMS(e.time_now) > pimpl()->_keyToRelease->getTapDuration())
 		{
-			pimpl()->GetPressMapping()->ProcessEvent(BtnEvent::OnTapRelease, *pimpl());
 			changeState<NoPress>();
-			pimpl()->ClearKey();
 		}
+	}
+
+	REACT(OnExit) override
+	{
+		pimpl()->_keyToRelease->ProcessEvent(BtnEvent::OnTapRelease, *pimpl());
+		pimpl()->ClearKey();
 	}
 };
 
@@ -638,38 +637,56 @@ class SimRelease : public DigitalButtonState
 	}
 };
 
-class DblPressStart : public DigitalButtonState
+class DblPressStart : public pocket_fsm::NestedStateMachine<ActiveMappingState, DigitalButtonState>
 {
 	DB_CONCRETE_STATE(DblPressStart)
-	REACT(Pressed)
-	override
+	REACT(OnEntry) override
 	{
-		DigitalButtonState::react(e);
-		if (pimpl()->GetPressDurationMS(e.time_now) > dbl_press_window)
-		{
-			changeState<BtnPress>();
-			//_press_times = time_now; // Reset Timer
-		}
+		initialize(new ActiveStartPress(_pimpl));
 	}
+	NESTED_REACT(Pressed)
 
 	REACT(Released)
 	override
 	{
-		DigitalButtonState::react(e);
+		sendEvent(e);
+
+		if (_nextState && static_cast<DigitalButtonState*>(_nextState)->getState() == BtnState::TapRelease
+		 && pimpl()->GetPressDurationMS(e.time_now) <= dbl_press_window)
+		{
+			// Redirect to DblPressNoPressTap
+			delete _nextState;
+			_nextState = nullptr;
+			changeState<DblPressNoPress>();
+		}
+	}
+};
+
+class DblPressNoPress : public DigitalButtonState
+{
+	DB_CONCRETE_STATE(DblPressNoPress)
+
+	REACT(Pressed) override
+	{
 		if (pimpl()->GetPressDurationMS(e.time_now) > dbl_press_window)
 		{
 			changeState<BtnPress>();
+			pimpl()->_press_times = e.time_now; // Reset Timer to raise a tap
 		}
 		else
 		{
-			if (pimpl()->GetPressDurationMS(e.time_now) > e.holdTime)
-			{
-				changeState<DblPressNoPressHold>();
-			}
-			else
-			{
-				changeState<DblPressNoPressTap>();
-			}
+			changeState<DblPressPress>();
+			pimpl()->_press_times = e.time_now;
+			pimpl()->_keyToRelease.reset(new Mapping(pimpl()->_mapping.getDblPressMap()->second));
+			pimpl()->_nameToRelease = pimpl()->_mapping.getName(pimpl()->_id);
+		}
+	}
+
+	REACT(Released) override
+	{
+		if (pimpl()->GetPressDurationMS(e.time_now) > dbl_press_window)
+		{
+			changeState<NoPress>();
 		}
 	}
 };
@@ -701,7 +718,6 @@ class DblPressNoPressTap : public DigitalButtonState
 		{
 			changeState<BtnPress>();
 			pimpl()->_press_times = e.time_now; // Reset Timer to raise a tap
-			pimpl()->GetPressMapping()->ProcessEvent(BtnEvent::OnPress, *pimpl());
 		}
 	}
 };
@@ -716,7 +732,6 @@ class DblPressNoPressHold : public DigitalButtonState
 		{
 			changeState<BtnPress>();
 			// Don't reset timer to preserve hold press behaviour
-			pimpl()->GetPressMapping()->ProcessEvent(BtnEvent::OnPress, *pimpl());
 		}
 		else
 		{

@@ -24,6 +24,7 @@ enum class BtnState
 	SimPressSlave,
 	SimRelease,
 	DblPressStart,
+	DblPressNoPress,
 	DblPressNoPressTap,
 	DblPressNoPressHold,
 	DblPressPress,
