@@ -943,8 +943,9 @@ public:
 		}
 	}
 
-	void handleTriggerChange(ButtonID softIndex, ButtonID fullIndex, TriggerMode mode, float position)
+	uint16_t handleTriggerChange(ButtonID softIndex, ButtonID fullIndex, TriggerMode mode, float position)
 	{
+		uint16_t trigger_rumble = 0;
 		if (mode != TriggerMode::X_LT && mode != TriggerMode::X_RT && (platform_controller_type == JS_TYPE_PRO_CONTROLLER || platform_controller_type == JS_TYPE_JOYCON_LEFT || platform_controller_type == JS_TYPE_JOYCON_RIGHT))
 		{
 			// Override local variable because the controller has digital triggers. Effectively ignore Full Pull binding.
@@ -955,20 +956,20 @@ public:
 		{
 			if (btnCommon->_vigemController)
 				btnCommon->_vigemController->setLeftTrigger(position);
-			return;
+			return small_early_rigid;
 		}
 		else if (mode == TriggerMode::X_RT)
 		{
 			if (btnCommon->_vigemController)
 				btnCommon->_vigemController->setRightTrigger(position);
-			return;
+			return small_early_rigid;
 		}
 
 		auto idxState = int(fullIndex) - FIRST_ANALOG_TRIGGER; // Get analog trigger index
 		if (idxState < 0 || idxState >= (int)triggerState.size())
 		{
 			COUT << "Error: Trigger " << fullIndex << " does not exist in state map. Dual Stage Trigger not possible." << endl;
-			return;
+			return trigger_rumble;
 		}
 
 		// if either trigger is waiting to be tap released, give it a go
@@ -987,6 +988,7 @@ public:
 		{
 		case DstState::NoPress:
 			// It actually doesn't matter what the last Press is. Theoretically, we could have missed the edge.
+			trigger_rumble = small_early_pulse;
 			if (isSoftPullPressed(idxState, position))
 			{
 				if (mode == TriggerMode::MAY_SKIP || mode == TriggerMode::MUST_SKIP)
@@ -1013,6 +1015,7 @@ public:
 			}
 			break;
 		case DstState::PressStart:
+			trigger_rumble = position < 0.55 ? too_late_pulse : large_late_pulse;
 			if (!isSoftPullPressed(idxState, position))
 			{
 				// Trigger has been quickly tapped on the soft press
@@ -1038,6 +1041,7 @@ public:
 			// Else, time passes as soft press is being held, waiting to see if the soft binding should be skipped
 			break;
 		case DstState::PressStartResp:
+			trigger_rumble = position < 0.55 ? too_late_pulse : large_late_pulse;
 			if (!isSoftPullPressed(idxState, position))
 			{
 				// Soft press is being released
@@ -1062,10 +1066,12 @@ public:
 			break;
 		case DstState::QuickSoftTap:
 			// Soft trigger is already released. Send release now!
+			trigger_rumble = small_early_pulse; // handle trigger threshold
 			triggerState[idxState] = DstState::NoPress;
 			handleButtonChange(softIndex, false);
 			break;
 		case DstState::QuickFullPress:
+			trigger_rumble = large_late_pulse;
 			if (position < 1.0f)
 			{
 				// Full press is being release
@@ -1079,6 +1085,7 @@ public:
 			}
 			break;
 		case DstState::QuickFullRelease:
+			trigger_rumble = large_late_pulse;
 			if (!isSoftPullPressed(idxState, position))
 			{
 				triggerState[idxState] = DstState::NoPress;
@@ -1097,30 +1104,40 @@ public:
 				// Soft press is being released
 				triggerState[idxState] = DstState::NoPress;
 				handleButtonChange(softIndex, false);
+				trigger_rumble = small_early_pulse;
 			}
 			else // Soft Press is being held
 			{
-
-				if ((mode == TriggerMode::MAY_SKIP || mode == TriggerMode::NO_SKIP || mode == TriggerMode::MAY_SKIP_R) && position == 1.0)
+				if (mode == TriggerMode::NO_SKIP || mode == TriggerMode::MAY_SKIP || mode == TriggerMode::MAY_SKIP_R)
 				{
-					// Full press is allowed in addition to soft press
-					triggerState[idxState] = DstState::DelayFullPress;
-					handleButtonChange(fullIndex, true);
+					trigger_rumble = large_late_pulse;
+					handleButtonChange(softIndex, true);
+					if (position == 1.0)
+					{
+						// Full press is allowed in addition to soft press
+						triggerState[idxState] = DstState::DelayFullPress;
+						handleButtonChange(fullIndex, true);
+					}
 				}
-				else if (mode == TriggerMode::NO_SKIP_EXCLUSIVE && position == 1.0)
+				else if (mode == TriggerMode::NO_SKIP_EXCLUSIVE)
 				{
+					trigger_rumble = large_late_pulse;
 					handleButtonChange(softIndex, false);
-					triggerState[idxState] = DstState::ExclFullPress;
-					handleButtonChange(fullIndex, true);
+					if (position == 1.0)
+					{
+						triggerState[idxState] = DstState::ExclFullPress;
+						handleButtonChange(fullIndex, true);
+					}
 				}
-				else
+				else // NO_FULL, MUST_SKIP and MUST_SKIP_R
 				{
 					handleButtonChange(softIndex, true);
+					trigger_rumble = too_late_pulse;
 				}
-				// else ignore full press on NO_FULL and MUST_SKIP
 			}
 			break;
 		case DstState::DelayFullPress:
+			trigger_rumble = large_late_pulse;
 			if (position < 1.0)
 			{
 				// Full Press is being released
@@ -1135,6 +1152,7 @@ public:
 			handleButtonChange(softIndex, true);
 			break;
 		case DstState::ExclFullPress:
+			trigger_rumble = large_late_pulse;
 			if (position < 1.0f)
 			{
 				// Full press is being release
@@ -1153,6 +1171,16 @@ public:
 			triggerState[idxState] = DstState::NoPress;
 			break;
 		}
+
+		if (mode == TriggerMode::NO_FULL)
+		{
+			trigger_rumble = large_early_rigid;
+		}
+		//else
+		//{
+		//	trigger_rumble = large_late_pulse;
+		//}
+		return trigger_rumble;
 	}
 
 	bool IsPressed(ButtonID btn)
@@ -1520,7 +1548,6 @@ bool do_README()
 	if (err != 0)
 	{
 		COUT << "Could not open online help. Error #" << err << endl;
-		;
 	}
 	return true;
 }
@@ -1530,30 +1557,35 @@ bool do_WHITELIST_SHOW()
 	if (whitelister)
 	{
 		COUT << "Your PID is " << GetCurrentProcessId() << endl;
-		whitelister->ShowHIDCerberus();
+		whitelister->ShowConsole();
 	}
 	return true;
 }
 
 bool do_WHITELIST_ADD()
 {
-	if (whitelister && whitelister->Add())
+	string errMsg = "Whitelister is not implemented";
+	if (whitelister && whitelister->Add(&errMsg))
 	{
 		COUT << "JoyShockMapper was successfully whitelisted" << endl;
 	}
 	else
 	{
-		CERR << "Whitelisting failed!" << endl;
+		CERR << "Whitelist operation failed: " << errMsg << endl;
 	}
 	return true;
 }
 
 bool do_WHITELIST_REMOVE()
 {
-	if (whitelister)
+	string errMsg = "Whitelister is not implemented";
+	if (whitelister && whitelister->Remove(&errMsg))
 	{
-		whitelister->Remove();
 		COUT << "JoyShockMapper removed from whitelist" << endl;
+	}
+	else
+	{
+		CERR << "Whitelist operation failed: " << errMsg << endl;
 	}
 	return true;
 }
@@ -1830,7 +1862,7 @@ void processStick(shared_ptr<JoyShock> jc, float stickX, float stickY, float las
 			}
 		}
 	}
-	else if (stickMode == StickMode::NO_MOUSE)
+	else if (stickMode == StickMode::NO_MOUSE || stickMode == StickMode::INNER_RING || stickMode == StickMode::OUTER_RING)
 	{ // Do not do if invalid
 		// left!
 		jc->handleButtonChange(leftId, left, touchpadIndex);
@@ -1841,7 +1873,7 @@ void processStick(shared_ptr<JoyShock> jc, float stickX, float stickY, float las
 		// down!
 		jc->handleButtonChange(downId, down, touchpadIndex);
 
-		anyStickInput = left | right | up | down; // ring doesn't count
+		anyStickInput = left || right || up || down; // ring doesn't count
 	}
 	else if (stickMode == StickMode::LEFT_STICK)
 	{
@@ -2259,7 +2291,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	}
 
 	int buttons = jsl->GetButtons(jc->handle);
-
+	uint16_t rumble_left = 0, rumble_right = 0;
 	// button mappings
 	if (jc->controller_split_type != JS_SPLIT_TYPE_RIGHT)
 	{
@@ -2271,18 +2303,18 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		jc->handleButtonChange(ButtonID::MINUS, buttons & (1 << JSOFFSET_MINUS));
 		// for backwards compatibility, we need need to account for the fact that SDL2 maps the touchpad button differently to SDL
 		jc->handleButtonChange(ButtonID::L3, buttons & (1 << JSOFFSET_LCLICK));
-		// SL and SR are mapped to back paddle positions:
-		jc->handleButtonChange(ButtonID::LSL, buttons & (1 << JSOFFSET_SL));
-		jc->handleButtonChange(ButtonID::LSR, buttons & (1 << JSOFFSET_SR));
 
 		float lTrigger = jsl->GetLeftTrigger(jc->handle);
-		jc->handleTriggerChange(ButtonID::ZL, ButtonID::ZLF, jc->getSetting<TriggerMode>(SettingID::ZL_MODE), lTrigger);
+		rumble_left = jc->handleTriggerChange(ButtonID::ZL, ButtonID::ZLF, jc->getSetting<TriggerMode>(SettingID::ZL_MODE), lTrigger);
 
 		bool touch = jsl->GetTouchDown(jc->handle, false) || jsl->GetTouchDown(jc->handle, true);
 		switch (jc->platform_controller_type)
 		{
-		case JS_TYPE_DS4:
 		case JS_TYPE_DS:
+			// JSL mapps mic button on the SL index
+			jc->handleButtonChange(ButtonID::MIC, buttons & (1 << JSOFFSET_MIC));
+			// Don't break but continue onto DS4 stuff too
+		case JS_TYPE_DS4:
 		{
 			float triggerpos = buttons & (1 << JSOFFSET_CAPTURE) ? 1.f :
 			  touch                                              ? 0.99f :
@@ -2294,10 +2326,22 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		{
 			jc->handleButtonChange(ButtonID::TOUCH, touch);
 			jc->handleButtonChange(ButtonID::CAPTURE, buttons & (1 << JSOFFSET_CAPTURE));
+			jc->handleButtonChange(ButtonID::LSL, buttons & (1 << JSOFFSET_SL));
 		}
 		break;
 		}
+
+		// SL and SR are mapped to back paddle positions:
+		jc->handleButtonChange(ButtonID::LSR, buttons & (1 << JSOFFSET_SR));
 	}
+	else // split type is RIGHT
+	{
+		// SL and SR are mapped to back paddle positions:
+		jc->handleButtonChange(ButtonID::RSL, buttons & (1 << JSOFFSET_SL));
+		jc->handleButtonChange(ButtonID::RSR, buttons & (1 << JSOFFSET_SR));
+
+	}
+
 	if (jc->controller_split_type != JS_SPLIT_TYPE_LEFT)
 	{
 		jc->handleButtonChange(ButtonID::E, buttons & (1 << JSOFFSET_E));
@@ -2308,13 +2352,13 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		jc->handleButtonChange(ButtonID::PLUS, buttons & (1 << JSOFFSET_PLUS));
 		jc->handleButtonChange(ButtonID::HOME, buttons & (1 << JSOFFSET_HOME));
 		jc->handleButtonChange(ButtonID::R3, buttons & (1 << JSOFFSET_RCLICK));
-		// SL and SR are mapped to back paddle positions:
-		jc->handleButtonChange(ButtonID::RSL, buttons & (1 << JSOFFSET_SL));
-		jc->handleButtonChange(ButtonID::RSR, buttons & (1 << JSOFFSET_SR));
 
 		float rTrigger = jsl->GetRightTrigger(jc->handle);
-		jc->handleTriggerChange(ButtonID::ZR, ButtonID::ZRF, jc->getSetting<TriggerMode>(SettingID::ZR_MODE), rTrigger);
+		rumble_right = jc->handleTriggerChange(ButtonID::ZR, ButtonID::ZRF, jc->getSetting<TriggerMode>(SettingID::ZR_MODE), rTrigger);
 	}
+
+	jsl->SetRightTriggerEffect(jc->handle, rumble_right);
+	jsl->SetLeftTriggerEffect(jc->handle, rumble_left);
 
 	// Handle buttons before GYRO because some of them may affect the value of blockGyro
 	auto gyro = jc->getSetting<GyroSettings>(SettingID::GYRO_ON); // same result as getting GYRO_OFF
@@ -2529,13 +2573,13 @@ void beforeShowTrayMenu()
 		  },
 		  bind(&PollingThread::isRunning, autoLoadThread.get()));
 
-		if (whitelister && whitelister->IsHIDCerberusRunning())
+		if (whitelister && whitelister->IsAvailable())
 		{
 			tray->AddMenuItem(
 			  U("Whitelist"), [](bool isChecked) {
 				  isChecked ?
-                    whitelister->Add() :
-                    whitelister->Remove();
+                    do_WHITELIST_ADD() :
+                    do_WHITELIST_REMOVE();
 			  },
 			  bind(&Whitelister::operator bool, whitelister.get()));
 		}
@@ -2593,6 +2637,7 @@ void CleanUp()
 	jsl->DisconnectAndDisposeAll();
 	handle_to_joyshock.clear(); // Destroy Vigem Gamepads
 	ReleaseConsole();
+	whitelister && whitelister->Remove();
 }
 
 float filterClamp01(float current, float next)
@@ -3000,6 +3045,11 @@ int __stdcall wWinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPWSTR cmdLi
 	auto trayIconData = hInstance;
 	int argc = 0;
 	wchar_t **argv = CommandLineToArgvW(cmdLine, &argc);
+	unsigned long length = 256;
+	wstring wmodule(length, '\0');
+	auto handle = GetCurrentProcess();
+	QueryFullProcessImageNameW(handle, 0, &wmodule[0], &length);
+	string module(wmodule.begin(), wmodule.begin() + length);
 	
 #else
 int main(int argc, char *argv[])
@@ -3134,6 +3184,7 @@ int main(int argc, char *argv[])
 				break;
 		}
 	}
+	assert(MAPPING_SIZE == buttonHelpMap.size() && "Please update the button help map in ButtonHelp.cpp");
 	for (auto &mapping : mappings) // Add all button mappings as commands
 	{
 		commandRegistry.Add((new JSMAssignment<Mapping>(mapping.getName(), mapping))->SetHelp(buttonHelpMap.at(mapping._id)));
@@ -3350,7 +3401,8 @@ int main(int argc, char *argv[])
 #else
 		string arg = string(argv[0]);
 #endif
-		if (filesystem::is_regular_file(filesystem::status(arg)))
+		if (filesystem::is_regular_file(filesystem::status(arg)) &&
+			arg != module)
 		{
 			commandRegistry.loadConfigFile(arg);
 			autoloadSwitch = Switch::OFF;

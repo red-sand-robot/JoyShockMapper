@@ -14,6 +14,10 @@ struct ControllerDevice
 {
 	ControllerDevice(int id)
 	{
+		SDL_memset(&_left_trigger_effect, 0, sizeof(SDL_JoystickTriggerEffect));
+		SDL_memset(&_right_trigger_effect, 0, sizeof(SDL_JoystickTriggerEffect));
+		_left_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_NO_EFFECT;
+		_right_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_NO_EFFECT;
 		if (SDL_IsGameController(id))
 		{
 			_sdlController = SDL_GameControllerOpen(id);
@@ -76,6 +80,8 @@ struct ControllerDevice
 	int _ctrlr_type;
 	uint16_t _small_rumble = 0;
 	uint16_t _big_rumble = 0;
+	SDL_JoystickTriggerEffect _left_trigger_effect;
+	SDL_JoystickTriggerEffect _right_trigger_effect;
 	SDL_GameController *_sdlController = nullptr;
 };
 
@@ -120,12 +126,13 @@ public:
 				}
 				if (inst->g_touch_callback)
 				{
-					TOUCH_STATE touch = inst->GetTouchState(iter->first), dummy3;
+					TOUCH_STATE touch = inst->GetTouchState(iter->first, false), dummy3;
 					memset(&dummy3, 0, sizeof(dummy3));
 					inst->g_touch_callback(iter->first, touch, dummy3, tick_time.get());
 				}
 				// Perform rumble
 				SDL_GameControllerRumble(iter->second->_sdlController, iter->second->_small_rumble, iter->second->_big_rumble, tick_time.get() + 1);
+				SDL_GameControllerRumbleTriggers(iter->second->_sdlController, iter->second->_left_trigger_effect, iter->second->_right_trigger_effect, tick_time.get() * 2);
 			}
 		}
 
@@ -222,7 +229,7 @@ public:
 		return MOTION_STATE();
 	}
 
-	TOUCH_STATE GetTouchState(int deviceId, bool previous = false) override
+	TOUCH_STATE GetTouchState(int deviceId, bool previous) override
 	{
 		uint8_t state0 = 0, state1 = 0;
 		TOUCH_STATE state;
@@ -287,7 +294,7 @@ public:
 		{
 			buttons |= SDL_GameControllerGetButton(_controllerMap[deviceId]->_sdlController, SDL_GameControllerButton(pair.first)) > 0 ? 1 << pair.second : 0;
 		}
-		switch (GetControllerType(deviceId))
+		switch (_controllerMap[deviceId]->_ctrlr_type)
 		{
 		case SDL_CONTROLLER_TYPE_PS4:
 		case SDL_CONTROLLER_TYPE_PS5:
@@ -380,7 +387,7 @@ public:
 		return int();
 	}
 
-	bool GetTouchDown(int deviceId, bool secondTouch = false) override
+	bool GetTouchDown(int deviceId, bool secondTouch)
 	{
 		uint8_t touchState = 0;
 		if (SDL_GameControllerGetTouchpadFinger(_controllerMap[deviceId]->_sdlController, 0, secondTouch ? 1 : 0, &touchState, nullptr, nullptr, nullptr) == 0)
@@ -498,6 +505,68 @@ public:
 	void SetPlayerNumber(int deviceId, int number) override
 	{
 		SDL_GameControllerSetPlayerIndex(_controllerMap[deviceId]->_sdlController, number);
+	}
+
+	void SetLeftTriggerEffect(int deviceId, int triggerEffect) override
+	{
+		switch (triggerEffect)
+		{
+		case small_early_rigid:
+			_controllerMap[deviceId]->_left_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_RIGID;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_rigid.start = 35;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_rigid.strength = 255;
+			break;
+		case small_early_pulse:
+			_controllerMap[deviceId]->_left_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_RIGID;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_rigid.start = 45;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_rigid.strength = 75;
+			break;
+		case large_late_pulse:
+			_controllerMap[deviceId]->_left_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_PULSE;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_pulse.start = 144;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_pulse.end = 160;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_pulse.strength = 255;
+			break;
+		case large_early_rigid:
+			_controllerMap[deviceId]->_left_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_RIGID;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_rigid.start = 45;
+			_controllerMap[deviceId]->_left_trigger_effect.u_data.mode_rigid.strength = 255;
+			break;
+		default:
+			_controllerMap[deviceId]->_left_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_NO_EFFECT;
+			break;
+		}
+	}
+
+	void SetRightTriggerEffect(int deviceId, int triggerEffect) override
+	{
+		switch (triggerEffect)
+		{
+		case small_early_rigid:
+			_controllerMap[deviceId]->_right_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_RIGID;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_rigid.start = 35;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_rigid.strength = 255;
+			break;
+		case small_early_pulse:
+			_controllerMap[deviceId]->_right_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_RIGID;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_rigid.start = 45;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_rigid.strength = 75;
+			break;
+		case large_late_pulse:
+			_controllerMap[deviceId]->_right_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_PULSE;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_pulse.start = 144;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_pulse.end = 160;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_pulse.strength = 255;
+			break;
+		case large_early_rigid:
+			_controllerMap[deviceId]->_right_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_RIGID;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_rigid.start = 45;
+			_controllerMap[deviceId]->_right_trigger_effect.u_data.mode_rigid.strength = 255;
+			break;
+		default:
+			_controllerMap[deviceId]->_right_trigger_effect.mode = SDL_JOYSTICK_TRIGGER_NO_EFFECT;
+			break;
+		}
 	}
 };
 

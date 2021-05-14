@@ -45,8 +45,9 @@ if (WINDOWS)
         src/win32/InputHelpers.cpp
         src/win32/PlatformDefinitions.cpp
         src/win32/WindowsTrayIcon.cpp        include/win32/WindowsTrayIcon.h
-        src/win32/Whitelister.cpp
         src/win32/Gamepad.cpp
+        src/win32/HidHideApi.cpp             include/HidHideApi.h
+        src/win32/HidHideWhitelister.cpp
         "Win32 Dialog.rc"                    include/win32/resource.h
     )
 
@@ -151,10 +152,8 @@ if(SDL)
 	# SDL2
 	CPMAddPackage (
 		NAME SDL2
-		GITHUB_REPOSITORY libsdl-org/SDL
-		VERSION 2.0.15
-		# 2.0.15 hasn't released yet, so let's use a specific commit
-		GIT_TAG c287087fcce57af086c0a52f74fcdb74e9084c55
+		GITHUB_REPOSITORY Electronicks/SDL
+		GIT_TAG main
 	)
 	
 	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -174,7 +173,7 @@ else()
 	CPMAddPackage (
 		NAME JoyShockLibrary
 		GITHUB_REPOSITORY JibbSmart/JoyShockLibrary
-		GIT_TAG master
+		VERSION 2.1.0
 	)
 
 	target_link_libraries (

@@ -30,7 +30,7 @@ public:
 		vigem_free(_client);
 	}
 
-	static PVIGEM_CLIENT get(VIGEM_ERROR *outError = nullptr)
+	static PVIGEM_CLIENT get(VIGEM_ERROR* outError = nullptr)
 	{
 		if (!_inst || !_inst->_client)
 		{
@@ -47,7 +47,7 @@ public:
 unique_ptr<VigemClient> VigemClient::_inst;
 
 template<>
-ostream &operator<<<VIGEM_ERROR>(ostream &out, VIGEM_ERROR errCode)
+ostream& operator<<<VIGEM_ERROR>(ostream& out, VIGEM_ERROR errCode)
 {
 	switch (errCode)
 	{
@@ -122,20 +122,20 @@ public:
 
 private:
 	static void CALLBACK x360Notification(
-	  PVIGEM_CLIENT client,
-	  PVIGEM_TARGET target,
-	  uint8_t largeMotor,
-	  uint8_t smallMotor,
-	  uint8_t ledNumber,
-	  void *userData);
+		PVIGEM_CLIENT client,
+		PVIGEM_TARGET target,
+		uint8_t largeMotor,
+		uint8_t smallMotor,
+		uint8_t ledNumber,
+		void* userData);
 
 	static void CALLBACK ds4Notification(
-	  PVIGEM_CLIENT client,
-	  PVIGEM_TARGET target,
-	  uint8_t largeMotor,
-	  uint8_t smallMotor,
-	  Indicator lightbarColor,
-	  void *userData);
+		PVIGEM_CLIENT client,
+		PVIGEM_TARGET target,
+		uint8_t largeMotor,
+		uint8_t smallMotor,
+		Indicator lightbarColor,
+		void* userData);
 
 	void init_x360();
 	void init_ds4();
@@ -150,12 +150,12 @@ private:
 };
 
 void GamepadImpl::x360Notification(
-  PVIGEM_CLIENT client,
-  PVIGEM_TARGET target,
-  uint8_t largeMotor,
-  uint8_t smallMotor,
-  uint8_t ledNumber,
-  void *userData)
+	PVIGEM_CLIENT client,
+	PVIGEM_TARGET target,
+	uint8_t largeMotor,
+	uint8_t smallMotor,
+	uint8_t ledNumber,
+	void* userData)
 {
 	auto originator = static_cast<GamepadImpl *>(userData);
 	if (client == VigemClient::get() && originator && originator->_gamepad == target && originator->_notification)
@@ -167,12 +167,12 @@ void GamepadImpl::x360Notification(
 }
 
 void GamepadImpl::ds4Notification(
-  PVIGEM_CLIENT client,
-  PVIGEM_TARGET target,
-  uint8_t largeMotor,
-  uint8_t smallMotor,
-  Indicator lightbarColor,
-  void *userData)
+	PVIGEM_CLIENT client,
+	PVIGEM_TARGET target,
+	uint8_t largeMotor,
+	uint8_t smallMotor,
+	Indicator lightbarColor,
+	void* userData)
 {
 	auto originator = static_cast<GamepadImpl *>(userData);
 	if (client == VigemClient::get() && originator && originator->_gamepad == target && originator->_notification)
@@ -184,7 +184,7 @@ void GamepadImpl::ds4Notification(
 GamepadImpl::GamepadImpl(ControllerScheme scheme, Callback notification)
   : _stateX360(new XUSB_REPORT)
   , _stateDS4(new DS4_REPORT)
-  , _notification(notification)
+  , _notification()
 {
 	XUSB_REPORT_INIT(_stateX360.get());
 	DS4_REPORT_INIT(_stateDS4.get());
@@ -200,7 +200,7 @@ GamepadImpl::GamepadImpl(ControllerScheme scheme, Callback notification)
 	else if (error == VIGEM_ERROR_BUS_NOT_FOUND)
 	{
 		ss << "ViGEm bus is not installed. You can download the latest version of it here:" << endl
-		   << "https://github.com/ViGEm/ViGEmBus/releases/latest";
+			<< "https://github.com/ViGEm/ViGEmBus/releases/latest";
 		_errorMsg = ss.str();
 		return;
 	}
@@ -319,12 +319,12 @@ ControllerScheme GamepadImpl::getType() const
 }
 
 template<typename T>
-void SetPressed(T &buttons, WORD mask)
+void SetPressed(T& buttons, WORD mask)
 {
 	buttons |= mask;
 }
 template<typename T>
-void ClearPressed(T &buttons, WORD mask)
+void ClearPressed(T& buttons, WORD mask)
 {
 	buttons &= ~mask;
 }
@@ -391,7 +391,7 @@ class PSHat
 
 public:
 	PSHat(WORD init = DS4_BUTTON_DPAD_NONE)
-	  : _value(init)
+		: _value(init)
 	{
 	}
 

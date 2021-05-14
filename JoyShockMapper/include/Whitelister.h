@@ -10,26 +10,26 @@ class Whitelister
 {
 protected:
 	Whitelister(bool add = false)
-	  : _whitelisted(false)
+		: _whitelisted(false)
 	{
 	}
 
 public:
-	static Whitelister *getNew(bool add = false);
+	static Whitelister* getNew(bool add = false);
 
 	virtual ~Whitelister()
 	{
 	}
 
-	virtual bool ShowHIDCerberus() = 0;
-	virtual bool IsHIDCerberusRunning() = 0;
+	virtual bool ShowConsole() = 0;
+	virtual bool IsAvailable() = 0;
 
-	virtual bool Add(string *optErrMsg = nullptr) = 0;
-	virtual bool Remove(string *optErrMsg = nullptr) = 0;
+	virtual bool Add(string* optErrMsg = nullptr) = 0;
+	virtual bool Remove(string* optErrMsg = nullptr) = 0;
 
 	// Check whether you're whitelisted or not.
 	// Could be replaced with an socket query, if one exists.
-	inline operator bool()
+	inline operator bool() const
 	{
 		return _whitelisted;
 	}

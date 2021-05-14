@@ -45,6 +45,8 @@ public:
 	MOCK_METHOD(void, SetLightColour, (int deviceId, int colour), (override));
 	MOCK_METHOD(void, SetRumble, (int deviceId, int smallRumble, int bigRumble), (override));
 	MOCK_METHOD(void, SetPlayerNumber, (int deviceId, int number), (override));
+	MOCK_METHOD(void, SetLeftTriggerEffect, (int deviceId, int effect), (override));
+	MOCK_METHOD(void, SetRightTriggerEffect, (int deviceId, int effect), (override));
 };
 
 JslWrapper* JslWrapper::getNew()

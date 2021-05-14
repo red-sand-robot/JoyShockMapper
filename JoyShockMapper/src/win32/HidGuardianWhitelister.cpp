@@ -11,9 +11,9 @@
 constexpr uint16_t HID_GUARDIAN_PORT = 26762;
 
 // Keep windows types outside of h file
-static SOCKET connectToServer(const string &szServerName, WORD portNum)
+static SOCKET connectToServer(const string& szServerName, WORD portNum)
 {
-	struct hostent *hp;
+	struct hostent* hp;
 	unsigned int addr;
 	struct sockaddr_in server;
 	SOCKET conn;
@@ -29,7 +29,7 @@ static SOCKET connectToServer(const string &szServerName, WORD portNum)
 	else
 	{
 		addr = inet_addr(szServerName.c_str());
-		hp = gethostbyaddr((char *)&addr, sizeof(addr), AF_INET);
+		hp = gethostbyaddr((char*)&addr, sizeof(addr), AF_INET);
 	}
 
 	if (hp == NULL)
@@ -38,10 +38,10 @@ static SOCKET connectToServer(const string &szServerName, WORD portNum)
 		return NULL;
 	}
 
-	server.sin_addr.s_addr = *((unsigned long *)hp->h_addr);
+	server.sin_addr.s_addr = *((unsigned long*)hp->h_addr);
 	server.sin_family = AF_INET;
 	server.sin_port = htons(portNum);
-	if (connect(conn, (struct sockaddr *)&server, sizeof(server)))
+	if (connect(conn, (struct sockaddr*)&server, sizeof(server)))
 	{
 		closesocket(conn);
 		return NULL;
@@ -49,11 +49,11 @@ static SOCKET connectToServer(const string &szServerName, WORD portNum)
 	return conn;
 }
 
-class WhitelisterImpl : public Whitelister
+class HidGuardianWhitelister : public Whitelister
 {
 public:
-	WhitelisterImpl(bool add = false)
-	  : Whitelister(add)
+	HidGuardianWhitelister(bool add = false)
+		: Whitelister(add)
 	{
 		if (add)
 		{
@@ -61,12 +61,12 @@ public:
 		}
 	}
 
-	~WhitelisterImpl()
+	~HidGuardianWhitelister()
 	{
 		Remove();
 	}
 
-	bool IsHIDCerberusRunning() override
+	bool IsAvailable() override
 	{
 		// Source: https://stackoverflow.com/questions/7808085/how-to-get-the-status-of-a-service-programmatically-running-stopped
 		SC_HANDLE theService, scm;
@@ -87,8 +87,8 @@ public:
 		}
 
 		auto result = QueryServiceStatusEx(theService, SC_STATUS_PROCESS_INFO,
-		  reinterpret_cast<LPBYTE>(&ssStatus), sizeof(SERVICE_STATUS_PROCESS),
-		  &dwBytesNeeded);
+			reinterpret_cast<LPBYTE>(&ssStatus), sizeof(SERVICE_STATUS_PROCESS),
+			&dwBytesNeeded);
 
 		CloseServiceHandle(theService);
 		CloseServiceHandle(scm);
@@ -96,10 +96,11 @@ public:
 		return result == TRUE && ssStatus.dwCurrentState == SERVICE_RUNNING;
 	}
 
-	bool ShowHIDCerberus() override
+	bool ShowConsole() override
 	{
-		std::cout << "Open HIDCerberus at the following adress in your browser:" << endl
-		          << "http://localhost:26762/" << endl;
+		std::cout << "Your PID is " << GetCurrentProcessId() << endl
+		          << "Open HIDCerberus at the following adress in your browser:" << endl
+			      << "http://localhost:26762/" << endl;
 		return true;
 		// SECURE CODING! https://www.oreilly.com/library/view/secure-programming-cookbook/0596003943/ch01s08.html
 		//STARTUPINFOA startupInfo;
@@ -118,9 +119,17 @@ public:
 		//return false;
 	}
 
-	virtual bool Add(string *optErrMsg = nullptr) override
+	virtual bool Add(string* optErrMsg = nullptr) override
 	{
-		if (!_whitelisted && IsHIDCerberusRunning())
+		if (!IsAvailable())
+		{
+			if (optErrMsg)
+			{
+				*optErrMsg = "No Whitelister Application is available. JoyShockMapper ecommends the latest HidHide from Nefarius\n" \
+					"https://github.com/ViGEm/HidHide/releases/latest";
+			}
+		}
+		else if (!_whitelisted)
 		{
 			UINT64 pid = GetCurrentProcessId();
 			stringstream ss;
@@ -136,12 +145,27 @@ public:
 			if (optErrMsg)
 				*optErrMsg = result;
 		}
+		else // Available and whitelisted
+		{
+			if (optErrMsg)
+			{
+				*optErrMsg = "JoyShockMapper is already whitelisted";
+			}
+		}
 		return false;
 	}
 
-	virtual bool Remove(string *optErrMsg = nullptr) override
+	virtual bool Remove(string* optErrMsg = nullptr) override
 	{
-		if (_whitelisted && IsHIDCerberusRunning())
+		if (!IsAvailable())
+		{
+			if (optErrMsg)
+			{
+				*optErrMsg = "No whitelisting application is available. JoyShockMapper recommends the latest HidHide from Nefarius:\n" \
+					"https://github.com/ViGEm/HidHide/releases/latest";
+			}
+		}
+		else if (_whitelisted)
 		{
 			UINT64 pid = GetCurrentProcessId();
 			stringstream ss;
@@ -156,17 +180,24 @@ public:
 			if (optErrMsg)
 				*optErrMsg = result;
 		}
+		else // Available and not whitelisted
+		{
+			if (optErrMsg)
+			{
+				*optErrMsg = "JoyShockMapper is not whitelisted";
+			}
+		}
 		return false;
 	}
 
 private:
 	string SendToHIDGuardian(string command);
-	string readUrl2(string &szUrl, long &bytesReturnedOut, string *headerOut);
-	void mParseUrl(string mUrl, string &serverName, string &filepath, string &filename);
-	int getHeaderLength(char *content);
+	string readUrl2(string& szUrl, long& bytesReturnedOut, string* headerOut);
+	void mParseUrl(string mUrl, string& serverName, string& filepath, string& filename);
+	int getHeaderLength(char* content);
 };
 
-string WhitelisterImpl::SendToHIDGuardian(string command)
+string HidGuardianWhitelister::SendToHIDGuardian(string command)
 {
 	long fileSize = -1;
 	WSADATA wsaData;
@@ -181,7 +212,7 @@ string WhitelisterImpl::SendToHIDGuardian(string command)
 	return memBuffer;
 }
 
-string WhitelisterImpl::readUrl2(string &szUrl, long &bytesReturnedOut, string *headerOut)
+string HidGuardianWhitelister::readUrl2(string& szUrl, long& bytesReturnedOut, string* headerOut)
 {
 	constexpr size_t bufSize = 512;
 	string readBuffer(bufSize, '\0');
@@ -199,8 +230,8 @@ string WhitelisterImpl::readUrl2(string &szUrl, long &bytesReturnedOut, string *
 
 	///////////// step 2, send GET request /////////////
 	tmpBuffer << "GET " << filepath << " HTTP/1.0"
-	          << "\r\n"
-	          << "Host: " << server << "\r\n\r\n";
+		<< "\r\n"
+		<< "Host: " << server << "\r\n\r\n";
 	sendBuffer = tmpBuffer.str();
 	send(conn, sendBuffer.c_str(), sendBuffer.length(), 0);
 
@@ -231,7 +262,7 @@ string WhitelisterImpl::readUrl2(string &szUrl, long &bytesReturnedOut, string *
 	return result;
 }
 
-void WhitelisterImpl::mParseUrl(string url, string &serverName, string &filepath, string &filename)
+void HidGuardianWhitelister::mParseUrl(string url, string& serverName, string& filepath, string& filename)
 {
 	string::size_type n;
 
@@ -258,10 +289,10 @@ void WhitelisterImpl::mParseUrl(string url, string &serverName, string &filepath
 	}
 }
 
-int WhitelisterImpl::getHeaderLength(char *content)
+int HidGuardianWhitelister::getHeaderLength(char* content)
 {
-	const char *srchStr1 = "\r\n\r\n", *srchStr2 = "\n\r\n\r";
-	char *findPos;
+	const char* srchStr1 = "\r\n\r\n", * srchStr2 = "\n\r\n\r";
+	char* findPos;
 	int ofset = -1;
 
 	findPos = strstr(content, srchStr1);
@@ -281,9 +312,4 @@ int WhitelisterImpl::getHeaderLength(char *content)
 		}
 	}
 	return ofset;
-}
-
-Whitelister *Whitelister::getNew(bool add)
-{
-	return new WhitelisterImpl(add);
 }

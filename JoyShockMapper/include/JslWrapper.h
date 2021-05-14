@@ -85,6 +85,16 @@
 #define DS5_PLAYER_4 = 27
 #define DS5_PLAYER_5 = 31
 
+enum triggerEffect
+{
+	none,
+	too_late_pulse = none,
+	small_early_rigid,
+	small_early_pulse,
+	large_late_pulse,
+	large_early_rigid,
+};
+
 typedef struct JOY_SHOCK_STATE
 {
 	int buttons;
@@ -188,4 +198,6 @@ public:
 	virtual void SetLightColour(int deviceId, int colour) = 0;
 	virtual void SetRumble(int deviceId, int smallRumble, int bigRumble) = 0;
 	virtual void SetPlayerNumber(int deviceId, int number) = 0;
+	virtual void SetLeftTriggerEffect(int deviceId, int triggerEffect) = 0;
+	virtual void SetRightTriggerEffect(int deviceId, int triggerEffect) = 0;
 };

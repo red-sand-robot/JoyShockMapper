@@ -1,17 +1,17 @@
 // JoyShockLibrary.h - Contains declarations of functions
 #pragma once
 
-#if _MSC_VER                                // this is defined when compiling with Visual Studio
+#if _MSC_VER // this is defined when compiling with Visual Studio
 #define JOY_SHOCK_API __declspec(dllexport) // Visual Studio needs annotating exported functions with this
 #else
 #define JOY_SHOCK_API // XCode does not need annotating exported functions, so define is empty
 #endif
 
-#define JS_TYPE_JOYCON_LEFT 21   // unused in SDL_GameControllerType
-#define JS_TYPE_JOYCON_RIGHT 22  // Unused in SDL_GameControllerType
-#define JS_TYPE_PRO_CONTROLLER 5 // SDL_GameControllerType::SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO
-#define JS_TYPE_DS4 4            // SDL_GameControllerType::SDL_CONTROLLER_TYPE_PS4
-#define JS_TYPE_DS 7             // SDL_GameControllerType::SDL_CONTROLLER_TYPE_PS5
+#define JS_TYPE_JOYCON_LEFT 1
+#define JS_TYPE_JOYCON_RIGHT 2
+#define JS_TYPE_PRO_CONTROLLER 3
+#define JS_TYPE_DS4 4
+#define JS_TYPE_DS 5
 
 #define JS_SPLIT_TYPE_LEFT 1
 #define JS_SPLIT_TYPE_RIGHT 2
@@ -76,8 +76,17 @@
 #define DS5_PLAYER_4 = 27
 #define DS5_PLAYER_5 = 31
 
-typedef struct JOY_SHOCK_STATE
+enum triggerEffect
 {
+	none,
+	too_late_pulse = none,
+	small_early_rigid,
+	small_early_pulse,
+	large_late_pulse,
+	large_early_rigid,
+};
+
+typedef struct JOY_SHOCK_STATE {
 	int buttons;
 	float lTrigger;
 	float rTrigger;
@@ -87,8 +96,7 @@ typedef struct JOY_SHOCK_STATE
 	float stickRY;
 } JOY_SHOCK_STATE;
 
-typedef struct IMU_STATE
-{
+typedef struct IMU_STATE {
 	float accelX;
 	float accelY;
 	float accelZ;
@@ -97,8 +105,7 @@ typedef struct IMU_STATE
 	float gyroZ;
 } IMU_STATE;
 
-typedef struct MOTION_STATE
-{
+typedef struct MOTION_STATE {
 	float quatW;
 	float quatX;
 	float quatY;
@@ -111,8 +118,7 @@ typedef struct MOTION_STATE
 	float gravZ;
 } MOTION_STATE;
 
-typedef struct TOUCH_STATE
-{
+typedef struct TOUCH_STATE {
 	int t0Id;
 	int t1Id;
 	bool t0Down;
@@ -154,7 +160,7 @@ extern "C" JOY_SHOCK_API JOY_SHOCK_STATE JslGetSimpleState(int deviceId);
 extern "C" JOY_SHOCK_API IMU_STATE JslGetIMUState(int deviceId);
 extern "C" JOY_SHOCK_API MOTION_STATE JslGetMotionState(int deviceId);
 extern "C" JOY_SHOCK_API TOUCH_STATE JslGetTouchState(int deviceId, bool previous = false);
-extern "C" JOY_SHOCK_API bool JslGetTouchpadDimension(int deviceId, int& sizeX, int& sizeY);
+extern "C" JOY_SHOCK_API bool JslGetTouchpadDimension(int deviceId, int &sizeX, int &sizeY);
 
 extern "C" JOY_SHOCK_API int JslGetButtons(int deviceId);
 
@@ -198,9 +204,9 @@ extern "C" JOY_SHOCK_API void JslGetCalibrationOffset(int deviceId, float& xOffs
 extern "C" JOY_SHOCK_API void JslSetCalibrationOffset(int deviceId, float xOffset, float yOffset, float zOffset);
 
 // this function will get called for each input event from each controller
-extern "C" JOY_SHOCK_API void JslSetCallback(void (*callback)(int, JOY_SHOCK_STATE, JOY_SHOCK_STATE, IMU_STATE, IMU_STATE, float));
+extern "C" JOY_SHOCK_API void JslSetCallback(void(*callback)(int, JOY_SHOCK_STATE, JOY_SHOCK_STATE, IMU_STATE, IMU_STATE, float));
 // this function will get called for each input event, even if touch data didn't update
-extern "C" JOY_SHOCK_API void JslSetTouchCallback(void (*callback)(int, TOUCH_STATE, TOUCH_STATE, float));
+extern "C" JOY_SHOCK_API void JslSetTouchCallback(void(*callback)(int, TOUCH_STATE, TOUCH_STATE, float));
 
 // what kind of controller is this?
 extern "C" JOY_SHOCK_API int JslGetControllerType(int deviceId);
@@ -214,3 +220,6 @@ extern "C" JOY_SHOCK_API void JslSetLightColour(int deviceId, int colour);
 extern "C" JOY_SHOCK_API void JslSetRumble(int deviceId, int smallRumble, int bigRumble);
 // set controller player number indicator (not all controllers have a number indicator which can be set, but that just means nothing will be done when this is called -- no harm)
 extern "C" JOY_SHOCK_API void JslSetPlayerNumber(int deviceId, int number);
+
+extern "C" JOY_SHOCK_API void JslSetLeftTriggerEffect(int deviceId, int triggerMode);
+extern "C" JOY_SHOCK_API void JslSetRightTriggerEffect(int deviceId, int triggerMode);
