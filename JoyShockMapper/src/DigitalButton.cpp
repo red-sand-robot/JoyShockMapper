@@ -2,6 +2,7 @@
 #include "JSMVariable.hpp"
 #include "GamepadMotion.h"
 #include "InputHelpers.h"
+#include "JoyShockContext.h"
 
 // JSM global variables
 extern JSMVariable<ControllerScheme> virtual_controller;
@@ -34,7 +35,7 @@ private:
 public:
 	vector<BtnEvent> _instantReleaseQueue;
 	unsigned int _turboCount = 0;
-	DigitalButtonImpl(JSMButton &mapping, shared_ptr<DigitalButton::Common> common)
+	DigitalButtonImpl(JSMButton &mapping, shared_ptr<JoyShockContext> common)
 	  : _id(mapping._id)
 	  , _common(common)
 	  , _press_times()
@@ -47,7 +48,7 @@ public:
 
 	const ButtonID _id; // Always ID first for easy debugging
 	string _nameToRelease;
-	shared_ptr<DigitalButton::Common> _common;
+	shared_ptr<JoyShockContext> _common;
 	chrono::steady_clock::time_point _press_times;
 	unique_ptr<Mapping> _keyToRelease; // At key press, remember what to release
 	const JSMButton &_mapping;
@@ -57,6 +58,16 @@ public:
 	inline float GetPressDurationMS(chrono::steady_clock::time_point time_now)
 	{
 		return static_cast<float>(chrono::duration_cast<chrono::milliseconds>(time_now - _press_times).count());
+	}
+
+	bool HasActiveToggle(shared_ptr<JoyShockContext> _context, const KeyCode& key) const
+	{
+		auto foundToggle = find_if(_context->activeTogglesQueue.cbegin(), _context->activeTogglesQueue.cend(),
+			[key] (auto& pair)
+			{
+				return pair.second == key; 
+			});
+		return foundToggle != _context->activeTogglesQueue.cend();
 	}
 
 	void ClearKey()
@@ -146,7 +157,7 @@ public:
 			if (_common->_vigemController)
 				_common->_vigemController->setButton(key, true);
 		}
-		else if (key.code != NO_HOLD_MAPPED && _common->HasActiveToggle(key) == false)
+		else if (key.code != NO_HOLD_MAPPED && HasActiveToggle(_common, key) == false)
 		{
 			DEBUG_LOG << "Pressing down on key " << key.name << endl;
 			pressKey(key, true);
@@ -821,28 +832,8 @@ class InstRelease : public DigitalButtonState
 
 // Top level interface
 
-DigitalButton::DigitalButton(shared_ptr<DigitalButton::Common> btnCommon, JSMButton &mapping)
+DigitalButton::DigitalButton(shared_ptr<JoyShockContext> _context, JSMButton &mapping)
   : _id(mapping._id)
 {
-	initialize(new NoPress(new DigitalButtonImpl(mapping, btnCommon)));
-}
-
-DigitalButton::Common::Common(Gamepad::Callback virtualControllerCallback, GamepadMotion *mainMotion)
-{
-	rightMainMotion = mainMotion;
-	chordStack.push_front(ButtonID::NONE); //Always hold mapping none at the end to handle modeshifts and chords
-	if (virtual_controller.get() != ControllerScheme::NONE)
-	{
-		_vigemController.reset(Gamepad::getNew(virtual_controller.get(), virtualControllerCallback));
-	}
-}
-
-bool DigitalButton::Common::HasActiveToggle(const KeyCode& key) const
-{
-	auto foundToggle = find_if(activeTogglesQueue.cbegin(), activeTogglesQueue.cend(),
-		[key] (auto& pair)
-		{
-			return pair.second == key; 
-		});
-	return foundToggle != activeTogglesQueue.cend();
+	initialize(new NoPress(new DigitalButtonImpl(mapping, _context)));
 }

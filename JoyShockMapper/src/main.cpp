@@ -1,24 +1,21 @@
 #include "JoyShockMapper.h"
 #include "JSMVersion.h"
 #include "JslWrapper.h"
-#include "DigitalButton.h"
 #include "GamepadMotion.h"
 #include "InputHelpers.h"
 #include "Whitelister.h"
 #include "TrayIcon.h"
 #include "JSMAssignment.hpp"
 #include "quatMaths.cpp"
-#include "Gamepad.h"
+#include "Joystick.h"
+#include "GamepadMotion.h"
 
 #include <mutex>
-#include <deque>
 #include <iomanip>
 #include <filesystem>
 #include <shellapi.h>
 
 #pragma warning(disable : 4996) // Disable deprecated API warnings
-
-#define PI 3.14159265359f
 
 const KeyCode KeyCode::EMPTY = KeyCode();
 const Mapping Mapping::NO_MAPPING = Mapping("NONE");
@@ -31,85 +28,6 @@ class JoyShock;
 void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE lastState, IMU_STATE imuState, IMU_STATE lastImuState, float deltaTime);
 void TouchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, float delta_time);
 
-// Contains all settings that can be modeshifted. They should be accessed only via Joyshock::getSetting
-JSMSetting<StickMode> left_stick_mode = JSMSetting<StickMode>(SettingID::LEFT_STICK_MODE, StickMode::NO_MOUSE);
-JSMSetting<StickMode> right_stick_mode = JSMSetting<StickMode>(SettingID::RIGHT_STICK_MODE, StickMode::NO_MOUSE);
-JSMSetting<StickMode> motion_stick_mode = JSMSetting<StickMode>(SettingID::MOTION_STICK_MODE, StickMode::NO_MOUSE);
-JSMSetting<RingMode> left_ring_mode = JSMSetting<RingMode>(SettingID::LEFT_RING_MODE, RingMode::OUTER);
-JSMSetting<RingMode> right_ring_mode = JSMSetting<RingMode>(SettingID::LEFT_RING_MODE, RingMode::OUTER);
-JSMSetting<RingMode> motion_ring_mode = JSMSetting<RingMode>(SettingID::MOTION_RING_MODE, RingMode::OUTER);
-JSMSetting<GyroAxisMask> mouse_x_from_gyro = JSMSetting<GyroAxisMask>(SettingID::MOUSE_X_FROM_GYRO_AXIS, GyroAxisMask::Y);
-JSMSetting<GyroAxisMask> mouse_y_from_gyro = JSMSetting<GyroAxisMask>(SettingID::MOUSE_Y_FROM_GYRO_AXIS, GyroAxisMask::X);
-JSMSetting<GyroSettings> gyro_settings = JSMSetting<GyroSettings>(SettingID::GYRO_ON, GyroSettings()); // Ignore mode none means no GYRO_OFF button
-JSMSetting<JoyconMask> joycon_gyro_mask = JSMSetting<JoyconMask>(SettingID::JOYCON_GYRO_MASK, JoyconMask::IGNORE_LEFT);
-JSMSetting<JoyconMask> joycon_motion_mask = JSMSetting<JoyconMask>(SettingID::JOYCON_MOTION_MASK, JoyconMask::IGNORE_RIGHT);
-JSMSetting<TriggerMode> zlMode = JSMSetting<TriggerMode>(SettingID::ZL_MODE, TriggerMode::NO_FULL);
-JSMSetting<TriggerMode> zrMode = JSMSetting<TriggerMode>(SettingID::ZR_MODE, TriggerMode::NO_FULL);
-JSMSetting<FlickSnapMode> flick_snap_mode = JSMSetting<FlickSnapMode>(SettingID::FLICK_SNAP_MODE, FlickSnapMode::NONE);
-JSMSetting<FloatXY> min_gyro_sens = JSMSetting<FloatXY>(SettingID::MIN_GYRO_SENS, { 0.0f, 0.0f });
-JSMSetting<FloatXY> max_gyro_sens = JSMSetting<FloatXY>(SettingID::MAX_GYRO_SENS, { 0.0f, 0.0f });
-JSMSetting<float> min_gyro_threshold = JSMSetting<float>(SettingID::MIN_GYRO_THRESHOLD, 0.0f);
-JSMSetting<float> max_gyro_threshold = JSMSetting<float>(SettingID::MAX_GYRO_THRESHOLD, 0.0f);
-JSMSetting<float> stick_power = JSMSetting<float>(SettingID::STICK_POWER, 1.0f);
-JSMSetting<FloatXY> stick_sens = JSMSetting<FloatXY>(SettingID::STICK_SENS, { 360.0f, 360.0f });
-// There's an argument that RWC has no interest in being modeshifted and thus could be outside this structure.
-JSMSetting<float> real_world_calibration = JSMSetting<float>(SettingID::REAL_WORLD_CALIBRATION, 40.0f);
-JSMSetting<float> in_game_sens = JSMSetting<float>(SettingID::IN_GAME_SENS, 1.0f);
-JSMSetting<float> trigger_threshold = JSMSetting<float>(SettingID::TRIGGER_THRESHOLD, 0.0f);
-JSMSetting<AxisMode> aim_x_sign = JSMSetting<AxisMode>(SettingID::STICK_AXIS_X, AxisMode::STANDARD);
-JSMSetting<AxisMode> aim_y_sign = JSMSetting<AxisMode>(SettingID::STICK_AXIS_Y, AxisMode::STANDARD);
-JSMSetting<AxisMode> gyro_y_sign = JSMSetting<AxisMode>(SettingID::GYRO_AXIS_Y, AxisMode::STANDARD);
-JSMSetting<AxisMode> gyro_x_sign = JSMSetting<AxisMode>(SettingID::GYRO_AXIS_X, AxisMode::STANDARD);
-JSMSetting<float> flick_time = JSMSetting<float>(SettingID::FLICK_TIME, 0.1f);
-JSMSetting<float> flick_time_exponent = JSMSetting<float>(SettingID::FLICK_TIME_EXPONENT, 0.0f);
-JSMSetting<float> gyro_smooth_time = JSMSetting<float>(SettingID::GYRO_SMOOTH_TIME, 0.125f);
-JSMSetting<float> gyro_smooth_threshold = JSMSetting<float>(SettingID::GYRO_SMOOTH_THRESHOLD, 0.0f);
-JSMSetting<float> gyro_cutoff_speed = JSMSetting<float>(SettingID::GYRO_CUTOFF_SPEED, 0.0f);
-JSMSetting<float> gyro_cutoff_recovery = JSMSetting<float>(SettingID::GYRO_CUTOFF_RECOVERY, 0.0f);
-JSMSetting<float> stick_acceleration_rate = JSMSetting<float>(SettingID::STICK_ACCELERATION_RATE, 0.0f);
-JSMSetting<float> stick_acceleration_cap = JSMSetting<float>(SettingID::STICK_ACCELERATION_CAP, 1000000.0f);
-JSMSetting<float> left_stick_deadzone_inner = JSMSetting<float>(SettingID::LEFT_STICK_DEADZONE_INNER, 0.15f);
-JSMSetting<float> left_stick_deadzone_outer = JSMSetting<float>(SettingID::LEFT_STICK_DEADZONE_OUTER, 0.1f);
-JSMSetting<float> flick_deadzone_angle = JSMSetting<float>(SettingID::FLICK_DEADZONE_ANGLE, 0.0f);
-JSMSetting<float> right_stick_deadzone_inner = JSMSetting<float>(SettingID::RIGHT_STICK_DEADZONE_INNER, 0.15f);
-JSMSetting<float> right_stick_deadzone_outer = JSMSetting<float>(SettingID::RIGHT_STICK_DEADZONE_OUTER, 0.1f);
-JSMSetting<float> motion_deadzone_inner = JSMSetting<float>(SettingID::MOTION_DEADZONE_INNER, 15.f);
-JSMSetting<float> motion_deadzone_outer = JSMSetting<float>(SettingID::MOTION_DEADZONE_OUTER, 135.f);
-JSMSetting<float> lean_threshold = JSMSetting<float>(SettingID::LEAN_THRESHOLD, 15.f);
-JSMSetting<ControllerOrientation> controller_orientation = JSMSetting<ControllerOrientation>(SettingID::CONTROLLER_ORIENTATION, ControllerOrientation::FORWARD);
-JSMSetting<float> trackball_decay = JSMSetting<float>(SettingID::TRACKBALL_DECAY, 1.0f);
-JSMSetting<float> mouse_ring_radius = JSMSetting<float>(SettingID::MOUSE_RING_RADIUS, 128.0f);
-JSMSetting<float> screen_resolution_x = JSMSetting<float>(SettingID::SCREEN_RESOLUTION_X, 1920.0f);
-JSMSetting<float> screen_resolution_y = JSMSetting<float>(SettingID::SCREEN_RESOLUTION_Y, 1080.0f);
-JSMSetting<float> rotate_smooth_override = JSMSetting<float>(SettingID::ROTATE_SMOOTH_OVERRIDE, -1.0f);
-JSMSetting<float> flick_snap_strength = JSMSetting<float>(SettingID::FLICK_SNAP_STRENGTH, 01.0f);
-JSMSetting<float> trigger_skip_delay = JSMSetting<float>(SettingID::TRIGGER_SKIP_DELAY, 150.0f);
-JSMSetting<float> turbo_period = JSMSetting<float>(SettingID::TURBO_PERIOD, 80.0f);
-JSMSetting<float> hold_press_time = JSMSetting<float>(SettingID::HOLD_PRESS_TIME, 150.0f);
-JSMVariable<float> sim_press_window = JSMVariable<float>(50.0f);
-JSMSetting<float> dbl_press_window = JSMSetting<float>(SettingID::DBL_PRESS_WINDOW, 150.0f);
-JSMVariable<float> tick_time = JSMSetting<float>(SettingID::TICK_TIME, 3);
-JSMSetting<Color> light_bar = JSMSetting<Color>(SettingID::LIGHT_BAR, 0xFFFFFF);
-JSMSetting<FloatXY> scroll_sens = JSMSetting<FloatXY>(SettingID::SCROLL_SENS, { 30.f, 30.f });
-JSMVariable<Switch> autoloadSwitch = JSMVariable<Switch>(Switch::ON);
-JSMVariable<FloatXY> grid_size = JSMVariable(FloatXY{ 2.f, 1.f }); // Default left side and right side button
-JSMSetting<TouchpadMode> touchpad_mode = JSMSetting<TouchpadMode>(SettingID::TOUCHPAD_MODE, TouchpadMode::GRID_AND_STICK);
-JSMSetting<StickMode> touch_stick_mode = JSMSetting<StickMode>(SettingID::TOUCH_STICK_MODE, StickMode::NO_MOUSE);
-JSMSetting<float> touch_stick_radius = JSMSetting<float>(SettingID::TOUCH_STICK_RADIUS, 300.f);
-JSMSetting<float> touch_deadzone_inner = JSMSetting<float>(SettingID::TOUCH_DEADZONE_INNER, 0.3f);
-JSMSetting<RingMode> touch_ring_mode = JSMSetting<RingMode>(SettingID::TOUCH_RING_MODE, RingMode::OUTER);
-JSMSetting<FloatXY> touchpad_sens = JSMSetting<FloatXY>(SettingID::TOUCHPAD_SENS, { 1.f, 1.f });
-JSMVariable<Switch> hide_minimized = JSMVariable<Switch>(Switch::OFF);
-JSMVariable<ControllerScheme> virtual_controller = JSMVariable<ControllerScheme>(ControllerScheme::NONE);
-JSMSetting<TriggerMode> touch_ds_mode = JSMSetting<TriggerMode>(SettingID::TOUCHPAD_DUAL_STAGE_MODE, TriggerMode::NO_SKIP);
-JSMSetting<Switch> rumble_enable = JSMSetting<Switch>(SettingID::RUMBLE, Switch::ON);
-JSMSetting<Switch> adaptive_trigger = JSMSetting<Switch>(SettingID::ADAPTIVE_TRIGGER, Switch::ON);
-JSMVariable<int> left_trigger_offset = JSMVariable<int>(25);
-JSMVariable<int> left_trigger_range = JSMVariable<int>(150);
-JSMVariable<int> right_trigger_offset = JSMVariable<int>(25);
-JSMVariable<int> right_trigger_range = JSMVariable<int>(25);
-
-JSMVariable<PathString> currentWorkingDir = JSMVariable<PathString>(PathString());
 vector<JSMButton> touch_buttons; // array of virtual buttons on the touchpad grid
 vector<JSMButton> mappings;      // array enables use of for each loop and other i/f
 mutex loading_lock;
@@ -122,144 +40,6 @@ bool devicesCalibrating = false;
 unordered_map<int, shared_ptr<JoyShock>> handle_to_joyshock;
 int triggersCalibrating = 0;
 
-class TouchStick
-{
-	int _index = -1;
-	FloatXY _currentLocation = { 0.f, 0.f };
-	bool _prevDown = false;
-
-	bool is_flicking_touch = false;
-	FloatXY touch_last_cal;
-	float touch_stick_acceleration = 1.0;
-	bool ignore_motion_stick = false;
-	// Handle a single touch related action. On per touch point
-public:
-	vector<DigitalButton> buttons; // Each touchstick gets it's own digital buttons. Is that smart?
-
-	TouchStick(int index, shared_ptr<DigitalButton::Common> common, int handle, GamepadMotion *motion)
-	  : _index(index)
-	{
-		size_t noTouchBtn = std::min(size_t(5), touch_buttons.size());
-		buttons.reserve(noTouchBtn);
-		for (int i = 0; i < noTouchBtn; ++i)
-		{
-			buttons.push_back(DigitalButton(common, touch_buttons[i]));
-		}
-	}
-
-	void handleTouchStickChange(shared_ptr<JoyShock> js, bool down, short movX, short movY, float delta_time);
-
-	inline bool wasDown()
-	{
-		return _prevDown;
-	}
-};
-
-class ScrollAxis
-{
-protected:
-	float _leftovers;
-	DigitalButton *_negativeButton;
-	DigitalButton *_positiveButton;
-	int _touchpadId;
-	ButtonID _pressedBtn;
-
-public:
-	static function<void(JoyShock *, ButtonID, int, bool)> _handleButtonChange;
-
-	ScrollAxis()
-	  : _leftovers(0.f)
-	  , _negativeButton(nullptr)
-	  , _positiveButton(nullptr)
-	  , _touchpadId(-1)
-	  , _pressedBtn(ButtonID::NONE)
-	{
-	}
-
-	void init(DigitalButton &negativeBtn, DigitalButton &positiveBtn, int touchpadId = -1)
-	{
-		_negativeButton = &negativeBtn;
-		_positiveButton = &positiveBtn;
-		_touchpadId = touchpadId;
-	}
-
-	void ProcessScroll(float distance, float sens, chrono::steady_clock::time_point now)
-	{
-		if (!_negativeButton || !_positiveButton)
-			return; // not initalized!
-
-		_leftovers += distance;
-		if (distance != 0)
-			DEBUG_LOG << " leftover is now " << _leftovers << endl;
-		//"[" << _negativeId << "," << _positiveId << "] moved " << distance << " so that
-
-		Pressed isPressed;
-		isPressed.time_now = now;
-		isPressed.turboTime = 50;
-		isPressed.holdTime = 150;
-		Released isReleased;
-		isReleased.time_now = now;
-		isReleased.turboTime = 50;
-		isReleased.holdTime = 150;
-		if (_pressedBtn != ButtonID::NONE)
-		{
-			float pressedTime = 0;
-			if (_pressedBtn == _negativeButton->_id)
-			{
-				pressedTime = _negativeButton->sendEvent(GetDuration{ now }).out_duration;
-				if (pressedTime < MAGIC_TAP_DURATION)
-				{
-					_negativeButton->sendEvent(isPressed);
-					_positiveButton->sendEvent(isReleased);
-					return;
-				}
-			}
-			else // _pressedBtn == _positiveButton->_id
-			{
-				pressedTime = _positiveButton->sendEvent(GetDuration{ now }).out_duration;
-				if (pressedTime < MAGIC_TAP_DURATION)
-				{
-					_negativeButton->sendEvent(isReleased);
-					_positiveButton->sendEvent(isPressed);
-					return;
-				}
-			}
-			// pressed time > TAP_DURATION meaning release the tap
-			_negativeButton->sendEvent(isReleased);
-			_positiveButton->sendEvent(isReleased);
-			_pressedBtn = ButtonID::NONE;
-		}
-		else if (fabsf(_leftovers) > sens)
-		{
-			if (_leftovers > 0)
-			{
-				_negativeButton->sendEvent(isPressed);
-				_positiveButton->sendEvent(isReleased);
-				_pressedBtn = _negativeButton->_id;
-			}
-			else
-			{
-				_negativeButton->sendEvent(isReleased);
-				_positiveButton->sendEvent(isPressed);
-				_pressedBtn = _positiveButton->_id;
-			}
-			_leftovers = _leftovers > 0 ? _leftovers - sens : _leftovers + sens;
-		}
-		// else do nothing and accumulate leftovers
-	}
-
-	void Reset(chrono::steady_clock::time_point now)
-	{
-		_leftovers = 0;
-		Released isReleased;
-		isReleased.time_now = now;
-		isReleased.turboTime = 50;
-		isReleased.holdTime = 150;
-		_negativeButton->sendEvent(isReleased);
-		_positiveButton->sendEvent(isReleased);
-		_pressedBtn = ButtonID::NONE;
-	}
-};
 
 struct TOUCH_POINT
 {
@@ -273,75 +53,71 @@ struct TOUCH_POINT
 	}
 };
 
+KeyCode::KeyCode()
+	: code()
+	, name()
+{
+}
+
+KeyCode::KeyCode(in_string keyName)
+	: code(nameToKey(keyName))
+	, name()
+{
+	if (code == COMMAND_ACTION)
+		name = keyName.substr(1, keyName.size() - 2); // Remove opening and closing quotation marks
+	else if (keyName.compare("SMALL_RUMBLE") == 0)
+	{
+		name = SMALL_RUMBLE;
+		code = RUMBLE;
+	}
+	else if (keyName.compare("BIG_RUMBLE") == 0)
+	{
+		name = BIG_RUMBLE;
+		code = RUMBLE;
+	}
+	else if (code != 0)
+		name = keyName;
+}
+
+JoyShockContext::JoyShockContext(Gamepad::Callback virtualControllerCallback, GamepadMotion *mainMotion)
+ : rightMainMotion(mainMotion)
+{
+	chordStack.push_front(ButtonID::NONE); //Always hold mapping none at the end to handle modeshifts and chords
+	if (virtual_controller.get() != ControllerScheme::NONE)
+	{
+		_vigemController.reset(Gamepad::getNew(virtual_controller.get(), virtualControllerCallback));
+	}
+}
+
 // An instance of this class represents a single controller device that JSM is listening to.
 class JoyShock
 {
 private:
 	float _weightsRemaining[64];
-	float _flickSamples[64];
-	int _frontSample = 0;
 
 	FloatXY _gyroSamples[64];
 	int _frontGyroSample = 0;
 
-	template<typename E1, typename E2>
-	static inline optional<E1> GetOptionalSetting(const JSMSetting<E2> &setting, ButtonID chord)
-	{
-		return setting.get(chord) ? optional<E1>(static_cast<E1>(*setting.get(chord))) : nullopt;
-	}
-
 public:
 	const int MaxGyroSamples = 64;
-	const int NumSamples = 64;
 	int handle;
 	GamepadMotion motion;
 	int platform_controller_type;
 
-	vector<DigitalButton> buttons;
+	vector<DigitalButton> buttons; // does not contain stick directions and ring
 	vector<DigitalButton> gridButtons;
 	vector<TouchStick> touchpads;
-	chrono::steady_clock::time_point started_flick;
-	chrono::steady_clock::time_point time_now;
-	bool is_flicking_left = false;
-	bool is_flicking_right = false;
-	bool is_flicking_motion = false;
-	float delta_flick = 0.0;
-	float flick_percent_done = 0.0;
-	float flick_rotation_counter = 0.0;
-	FloatXY left_last_cal;
-	FloatXY right_last_cal;
-	FloatXY motion_last_cal;
-	ScrollAxis left_scroll;
-	ScrollAxis right_scroll;
-	//ScrollAxis motion_scroll_x;
-	//ScrollAxis motion_scroll_y;
-	ScrollAxis touch_scroll_x;
-	ScrollAxis touch_scroll_y;
+	Joystick leftStick;
+	Joystick rightStick;
+	Joystick motionStick;
+
 	TOUCH_STATE prevTouchState;
 
 	int controller_split_type = 0;
 
-	float left_acceleration = 1.0;
-	float right_acceleration = 1.0;
-	float motion_stick_acceleration = 1.0;
 	vector<DstState> triggerState; // State of analog triggers when skip mode is active
 	vector<deque<float>> prevTriggerPosition;
-	shared_ptr<DigitalButton::Common> btnCommon;
-
-	// Modeshifting the stick mode can create quirky behaviours on transition. These flags
-	// will be set upon returning to standard mode and ignore stick inputs until the stick
-	// returns to neutral
-	bool ignore_left_stick_mode = false;
-	bool ignore_right_stick_mode = false;
-	bool ignore_motion_stick_mode = false;
-
-	float lastMotionStickX = 0.0f;
-	float lastMotionStickY = 0.0f;
-
-	float lastLX = 0.f;
-	float lastLY = 0.f;
-	float lastRX = 0.f;
-	float lastRY = 0.f;
+	shared_ptr<JoyShockContext> _context;
 
 	float neutralQuatW = 1.0f;
 	float neutralQuatX = 0.0f;
@@ -363,45 +139,39 @@ public:
 	JOY_SHOCK_TRIGGER_EFFECT right_effect;
 	JOY_SHOCK_TRIGGER_EFFECT unused_effect;
 
-	JoyShock(int uniqueHandle, int controllerSplitType, shared_ptr<DigitalButton::Common> sharedButtonCommon = nullptr)
+	JoyShock(int uniqueHandle, int controllerSplitType, shared_ptr<JoyShockContext> sharedContext = nullptr)
 	  : handle(uniqueHandle)
 	  , controller_split_type(controllerSplitType)
 	  , platform_controller_type(jsl->GetControllerType(uniqueHandle))
 	  , triggerState(NUM_ANALOG_TRIGGERS, DstState::NoPress)
 	  , prevTriggerPosition(NUM_ANALOG_TRIGGERS, deque<float>(MAGIC_TRIGGER_SMOOTHING, 0.f))
 	  , _light_bar(*light_bar.get())
-	  , btnCommon(sharedButtonCommon)
+	  , _context(sharedContext ? sharedContext : make_shared<JoyShockContext>(
+			  bind(&JoyShock::handleViGEmNotification, this, placeholders::_1, placeholders::_2, placeholders::_3), &motion))
+	  , leftStick(ButtonID::LLEFT, ButtonID::LRIGHT, ButtonID::LUP, ButtonID::LDOWN, ButtonID::LRING, SettingID::LEFT_STICK_DEADZONE_INNER, SettingID::LEFT_STICK_DEADZONE_OUTER, SettingID::LEFT_RING_MODE, SettingID::LEFT_STICK_MODE, _context)
+	  , rightStick(ButtonID::RLEFT, ButtonID::RRIGHT, ButtonID::RUP, ButtonID::RDOWN, ButtonID::RRING, SettingID::RIGHT_STICK_DEADZONE_INNER, SettingID::RIGHT_STICK_DEADZONE_OUTER, SettingID::RIGHT_RING_MODE, SettingID::RIGHT_STICK_MODE, _context)
+	  , motionStick(ButtonID::MLEFT, ButtonID::MRIGHT, ButtonID::MUP, ButtonID::MDOWN, ButtonID::MRING, SettingID::MOTION_DEADZONE_INNER, SettingID::MOTION_DEADZONE_OUTER, SettingID::MOTION_RING_MODE, SettingID::MOTION_STICK_MODE, _context)
 	{
-		if (!sharedButtonCommon)
-		{
-			btnCommon = shared_ptr<DigitalButton::Common>(new DigitalButton::Common(
-			  bind(&JoyShock::handleViGEmNotification, this, placeholders::_1, placeholders::_2, placeholders::_3), &motion));
-		}
-		_light_bar = getSetting<Color>(SettingID::LIGHT_BAR);
+		_light_bar = _context->getSetting<Color>(SettingID::LIGHT_BAR);
 
 		platform_controller_type = jsl->GetControllerType(handle);
-		btnCommon->_getMatchingSimBtn = bind(&JoyShock::GetMatchingSimBtn, this, placeholders::_1);
-		btnCommon->_rumble = bind(&JoyShock::Rumble, this, placeholders::_1, placeholders::_2);
+		_context->_getMatchingSimBtn = bind(&JoyShock::GetMatchingSimBtn, this, placeholders::_1);
+		_context->_rumble = bind(&JoyShock::Rumble, this, placeholders::_1, placeholders::_2);
 
 		buttons.reserve(mappings.size());
-		for (int i = 0; i < mappings.size(); ++i)
+		for (int i = 0; i < LAST_ANALOG_TRIGGER; ++i)
 		{
-			buttons.push_back(DigitalButton(btnCommon, mappings[i]));
+			buttons.push_back(DigitalButton(_context, mappings[i]));
 		}
-		right_scroll.init(buttons[int(ButtonID::RLEFT)], buttons[int(ButtonID::RRIGHT)]);
-		left_scroll.init(buttons[int(ButtonID::LLEFT)], buttons[int(ButtonID::LRIGHT)]);
-		ResetSmoothSample();
 		if (!CheckVigemState())
 		{
 			virtual_controller = ControllerScheme::NONE;
 		}
-		jsl->SetLightColour(handle, getSetting<Color>(SettingID::LIGHT_BAR).raw);
+		jsl->SetLightColour(handle, _context->getSetting<Color>(SettingID::LIGHT_BAR).raw);
 		for (int i = 0; i < MAX_NO_OF_TOUCH; ++i)
 		{
-			touchpads.push_back(TouchStick(i, btnCommon, handle, &motion));
+			touchpads.push_back(TouchStick(i, _context));
 		}
-		touch_scroll_x.init(touchpads[0].buttons[int(ButtonID::TLEFT) - FIRST_TOUCH_BUTTON], touchpads[0].buttons[int(ButtonID::TRIGHT) - FIRST_TOUCH_BUTTON]);
-		touch_scroll_y.init(touchpads[0].buttons[int(ButtonID::TUP) - FIRST_TOUCH_BUTTON], touchpads[0].buttons[int(ButtonID::TDOWN) - FIRST_TOUCH_BUTTON]);
 		updateGridSize(grid_size.get().x() * grid_size.get().y() + 5);
 		prevTouchState.t0Down = false;
 		prevTouchState.t1Down = false;
@@ -411,17 +181,17 @@ public:
 	{
 		if (controller_split_type == JS_SPLIT_TYPE_LEFT)
 		{
-			btnCommon->leftMotion = nullptr;
+			_context->leftMotion = nullptr;
 		}
 		else
 		{
-			btnCommon->rightMainMotion = nullptr;
+			_context->rightMainMotion = nullptr;
 		}
 	}
 
 	void Rumble(int smallRumble, int bigRumble)
 	{
-		if (getSetting<Switch>(SettingID::RUMBLE) == Switch::ON)
+		if (_context->getSetting<Switch>(SettingID::RUMBLE) == Switch::ON)
 		{
 			// DEBUG_LOG << "Rumbling at " << smallRumble << " and " << bigRumble << endl;
 			jsl->SetRumble(handle, smallRumble, bigRumble);
@@ -433,12 +203,12 @@ public:
 		if (virtual_controller.get() != ControllerScheme::NONE)
 		{
 			string error = "There is no controller object";
-			if (!btnCommon->_vigemController || btnCommon->_vigemController->isInitialized(&error) == false)
+			if (!_context->_vigemController || _context->_vigemController->isInitialized(&error) == false)
 			{
 				CERR << "[ViGEm Client] " << error << endl;
 				return false;
 			}
-			else if (btnCommon->_vigemController->getType() != virtual_controller.get())
+			else if (_context->_vigemController->getType() != virtual_controller.get())
 			{
 				CERR << "[ViGEm Client] The controller is of the wrong type!" << endl;
 				return false;
@@ -454,7 +224,7 @@ public:
 		//auto diff = ((float)chrono::duration_cast<chrono::microseconds>(now - last_call).count()) / 1000000.0f;
 		//last_call = now;
 		//COUT_INFO << "Time since last vigem rumble is " << diff << " us" << endl;
-		lock_guard guard(this->btnCommon->callback_lock);
+		lock_guard guard(this->_context->callback_lock);
 		switch (platform_controller_type)
 		{
 		case JS_TYPE_DS4:
@@ -466,317 +236,6 @@ public:
 			break;
 		}
 		Rumble(smallMotor, largeMotor);
-	}
-
-	template<typename E>
-	E getSetting(SettingID index)
-	{
-		static_assert(is_enum<E>::value, "Parameter of JoyShock::getSetting<E> has to be an enum type");
-		// Look at active chord mappings starting with the latest activates chord
-		for (auto activeChord = btnCommon->chordStack.begin(); activeChord != btnCommon->chordStack.end(); activeChord++)
-		{
-			optional<E> opt;
-			switch (index)
-			{
-			case SettingID::MOUSE_X_FROM_GYRO_AXIS:
-				opt = GetOptionalSetting<E>(mouse_x_from_gyro, *activeChord);
-				break;
-			case SettingID::MOUSE_Y_FROM_GYRO_AXIS:
-				opt = GetOptionalSetting<E>(mouse_y_from_gyro, *activeChord);
-				break;
-			case SettingID::LEFT_STICK_MODE:
-				opt = GetOptionalSetting<E>(left_stick_mode, *activeChord);
-				if (ignore_left_stick_mode && *activeChord == ButtonID::NONE)
-					opt = optional<E>(static_cast<E>(StickMode::INVALID));
-				else
-					ignore_left_stick_mode |= (opt && *activeChord != ButtonID::NONE);
-				break;
-			case SettingID::RIGHT_STICK_MODE:
-				opt = GetOptionalSetting<E>(right_stick_mode, *activeChord);
-				if (ignore_right_stick_mode && *activeChord == ButtonID::NONE)
-					opt = optional<E>(static_cast<E>(StickMode::INVALID));
-				else
-					ignore_right_stick_mode |= (opt && *activeChord != ButtonID::NONE);
-				break;
-			case SettingID::MOTION_STICK_MODE:
-				opt = GetOptionalSetting<E>(motion_stick_mode, *activeChord);
-				if (ignore_motion_stick_mode && *activeChord == ButtonID::NONE)
-					opt = optional<E>(static_cast<E>(StickMode::INVALID));
-				else
-					ignore_motion_stick_mode |= (opt && *activeChord != ButtonID::NONE);
-				break;
-			case SettingID::LEFT_RING_MODE:
-				opt = GetOptionalSetting<E>(left_ring_mode, *activeChord);
-				break;
-			case SettingID::RIGHT_RING_MODE:
-				opt = GetOptionalSetting<E>(right_ring_mode, *activeChord);
-				break;
-			case SettingID::MOTION_RING_MODE:
-				opt = GetOptionalSetting<E>(motion_ring_mode, *activeChord);
-				break;
-			case SettingID::JOYCON_GYRO_MASK:
-				opt = GetOptionalSetting<E>(joycon_gyro_mask, *activeChord);
-				break;
-			case SettingID::JOYCON_MOTION_MASK:
-				opt = GetOptionalSetting<E>(joycon_motion_mask, *activeChord);
-				break;
-			case SettingID::CONTROLLER_ORIENTATION:
-				opt = GetOptionalSetting<E>(controller_orientation, *activeChord);
-				if (opt && int(*opt) == int(ControllerOrientation::JOYCON_SIDEWAYS))
-				{
-					if (controller_split_type == JS_SPLIT_TYPE_LEFT)
-					{
-						opt = optional<E>(static_cast<E>(ControllerOrientation::LEFT));
-					}
-					else if (controller_split_type == JS_SPLIT_TYPE_RIGHT)
-					{
-						opt = optional<E>(static_cast<E>(ControllerOrientation::RIGHT));
-					}
-					else
-					{
-						opt = optional<E>(static_cast<E>(ControllerOrientation::FORWARD));
-					}
-				}
-				break;
-			case SettingID::ZR_MODE:
-				opt = GetOptionalSetting<E>(zrMode, *activeChord);
-				break;
-			case SettingID::ZL_MODE:
-				opt = GetOptionalSetting<E>(zlMode, *activeChord);
-				break;
-			case SettingID::FLICK_SNAP_MODE:
-				opt = GetOptionalSetting<E>(flick_snap_mode, *activeChord);
-				break;
-			case SettingID::TOUCHPAD_MODE:
-				opt = GetOptionalSetting<E>(touchpad_mode, *activeChord);
-				break;
-			case SettingID::TOUCH_STICK_MODE:
-				opt = GetOptionalSetting<E>(touch_stick_mode, *activeChord);
-				break;
-			case SettingID::TOUCH_RING_MODE:
-				opt = GetOptionalSetting<E>(touch_stick_mode, *activeChord);
-				break;
-			case SettingID::TOUCHPAD_DUAL_STAGE_MODE:
-				opt = GetOptionalSetting<E>(touch_ds_mode, *activeChord);
-				break;
-			case SettingID::RUMBLE:
-				opt = GetOptionalSetting<E>(rumble_enable, *activeChord);
-				break;
-			case SettingID::ADAPTIVE_TRIGGER:
-				opt = GetOptionalSetting<E>(adaptive_trigger, *activeChord);
-				break;
-			}
-			if (opt)
-				return *opt;
-		}
-		stringstream ss;
-		ss << "Index " << index << " is not a valid enum setting";
-		throw invalid_argument(ss.str().c_str());
-	}
-
-	float getSetting(SettingID index)
-	{
-		// Look at active chord mappings starting with the latest activates chord
-		for (auto activeChord = btnCommon->chordStack.begin(); activeChord != btnCommon->chordStack.end(); activeChord++)
-		{
-			optional<float> opt;
-			switch (index)
-			{
-			case SettingID::MIN_GYRO_THRESHOLD:
-				opt = min_gyro_threshold.get(*activeChord);
-				break;
-			case SettingID::MAX_GYRO_THRESHOLD:
-				opt = max_gyro_threshold.get(*activeChord);
-				break;
-			case SettingID::STICK_POWER:
-				opt = stick_power.get(*activeChord);
-				break;
-			case SettingID::REAL_WORLD_CALIBRATION:
-				opt = real_world_calibration.get(*activeChord);
-				break;
-			case SettingID::IN_GAME_SENS:
-				opt = in_game_sens.get(*activeChord);
-				break;
-			case SettingID::TRIGGER_THRESHOLD:
-				opt = trigger_threshold.get(*activeChord);
-				if (opt && platform_controller_type == JS_TYPE_DS && getSetting<Switch>(SettingID::ADAPTIVE_TRIGGER) == Switch::ON)
-					opt = optional(max(0.f, *opt)); // hair trigger disabled on dual sense when adaptive triggers are active
-				break;
-			case SettingID::STICK_AXIS_X:
-				opt = GetOptionalSetting<float>(aim_x_sign, *activeChord);
-				break;
-			case SettingID::STICK_AXIS_Y:
-				opt = GetOptionalSetting<float>(aim_y_sign, *activeChord);
-				break;
-			case SettingID::GYRO_AXIS_X:
-				opt = GetOptionalSetting<float>(gyro_x_sign, *activeChord);
-				break;
-			case SettingID::GYRO_AXIS_Y:
-				opt = GetOptionalSetting<float>(gyro_y_sign, *activeChord);
-				break;
-			case SettingID::FLICK_TIME:
-				opt = flick_time.get(*activeChord);
-				break;
-			case SettingID::FLICK_TIME_EXPONENT:
-				opt = flick_time_exponent.get(*activeChord);
-				break;
-			case SettingID::GYRO_SMOOTH_THRESHOLD:
-				opt = gyro_smooth_threshold.get(*activeChord);
-				break;
-			case SettingID::GYRO_SMOOTH_TIME:
-				opt = gyro_smooth_time.get(*activeChord);
-				break;
-			case SettingID::GYRO_CUTOFF_SPEED:
-				opt = gyro_cutoff_speed.get(*activeChord);
-				break;
-			case SettingID::GYRO_CUTOFF_RECOVERY:
-				opt = gyro_cutoff_recovery.get(*activeChord);
-				break;
-			case SettingID::STICK_ACCELERATION_RATE:
-				opt = stick_acceleration_rate.get(*activeChord);
-				break;
-			case SettingID::STICK_ACCELERATION_CAP:
-				opt = stick_acceleration_cap.get(*activeChord);
-				break;
-			case SettingID::LEFT_STICK_DEADZONE_INNER:
-				opt = left_stick_deadzone_inner.get(*activeChord);
-				break;
-			case SettingID::LEFT_STICK_DEADZONE_OUTER:
-				opt = left_stick_deadzone_outer.get(*activeChord);
-				break;
-			case SettingID::RIGHT_STICK_DEADZONE_INNER:
-				opt = right_stick_deadzone_inner.get(*activeChord);
-				break;
-			case SettingID::RIGHT_STICK_DEADZONE_OUTER:
-				opt = right_stick_deadzone_outer.get(*activeChord);
-				break;
-			case SettingID::MOTION_DEADZONE_INNER:
-				opt = motion_deadzone_inner.get(*activeChord);
-				break;
-			case SettingID::MOTION_DEADZONE_OUTER:
-				opt = motion_deadzone_outer.get(*activeChord);
-				break;
-			case SettingID::LEAN_THRESHOLD:
-				opt = lean_threshold.get(*activeChord);
-				break;
-			case SettingID::FLICK_DEADZONE_ANGLE:
-				opt = flick_deadzone_angle.get(*activeChord);
-				break;
-			case SettingID::TRACKBALL_DECAY:
-				opt = trackball_decay.get(*activeChord);
-				break;
-			case SettingID::MOUSE_RING_RADIUS:
-				opt = mouse_ring_radius.get(*activeChord);
-				break;
-			case SettingID::SCREEN_RESOLUTION_X:
-				opt = screen_resolution_x.get(*activeChord);
-				break;
-			case SettingID::SCREEN_RESOLUTION_Y:
-				opt = screen_resolution_y.get(*activeChord);
-				break;
-			case SettingID::ROTATE_SMOOTH_OVERRIDE:
-				opt = rotate_smooth_override.get(*activeChord);
-				break;
-			case SettingID::FLICK_SNAP_STRENGTH:
-				opt = flick_snap_strength.get(*activeChord);
-				break;
-			case SettingID::TRIGGER_SKIP_DELAY:
-				opt = trigger_skip_delay.get(*activeChord);
-				break;
-			case SettingID::TURBO_PERIOD:
-				opt = turbo_period.get(*activeChord);
-				break;
-			case SettingID::HOLD_PRESS_TIME:
-				opt = hold_press_time.get(*activeChord);
-				break;
-			case SettingID::TOUCH_STICK_RADIUS:
-				opt = touch_stick_radius.get(*activeChord);
-				break;
-			case SettingID::TOUCH_DEADZONE_INNER:
-				opt = touch_deadzone_inner.get(*activeChord);
-				break;
-			case SettingID::DBL_PRESS_WINDOW:
-				opt = dbl_press_window.get(*activeChord);
-				break;
-				// SIM_PRESS_WINDOW are not chorded, they can be accessed as is.
-			}
-			if (opt)
-				return *opt;
-		}
-
-		std::stringstream message;
-		message << "Index " << index << " is not a valid float setting";
-		throw std::out_of_range(message.str().c_str());
-	}
-
-	template<>
-	FloatXY getSetting<FloatXY>(SettingID index)
-	{
-		// Look at active chord mappings starting with the latest activates chord
-		for (auto activeChord = btnCommon->chordStack.begin(); activeChord != btnCommon->chordStack.end(); activeChord++)
-		{
-			optional<FloatXY> opt;
-			switch (index)
-			{
-			case SettingID::MIN_GYRO_SENS:
-				opt = min_gyro_sens.get(*activeChord);
-				break;
-			case SettingID::MAX_GYRO_SENS:
-				opt = max_gyro_sens.get(*activeChord);
-				break;
-			case SettingID::STICK_SENS:
-				opt = stick_sens.get(*activeChord);
-				break;
-			case SettingID::TOUCHPAD_SENS:
-				opt = touchpad_sens.get(*activeChord);
-				break;
-			case SettingID::SCROLL_SENS:
-				opt = scroll_sens.get(*activeChord);
-				break;
-			}
-			if (opt)
-				return *opt;
-		} // Check next Chord
-
-		stringstream ss;
-		ss << "Index " << index << " is not a valid FloatXY setting";
-		throw invalid_argument(ss.str().c_str());
-	}
-
-	template<>
-	GyroSettings getSetting<GyroSettings>(SettingID index)
-	{
-		if (index == SettingID::GYRO_ON || index == SettingID::GYRO_OFF)
-		{
-			// Look at active chord mappings starting with the latest activates chord
-			for (auto activeChord = btnCommon->chordStack.begin(); activeChord != btnCommon->chordStack.end(); activeChord++)
-			{
-				auto opt = gyro_settings.get(*activeChord);
-				if (opt)
-					return *opt;
-			}
-		}
-		stringstream ss;
-		ss << "Index " << index << " is not a valid GyroSetting";
-		throw invalid_argument(ss.str().c_str());
-	}
-
-	template<>
-	Color getSetting<Color>(SettingID index)
-	{
-		if (index == SettingID::LIGHT_BAR)
-		{
-			// Look at active chord mappings starting with the latest activates chord
-			for (auto activeChord = btnCommon->chordStack.begin(); activeChord != btnCommon->chordStack.end(); activeChord++)
-			{
-				auto opt = light_bar.get(*activeChord);
-				if (opt)
-					return *opt;
-			}
-		}
-		stringstream ss;
-		ss << "Index " << index << " is not a valid Color";
-		throw invalid_argument(ss.str().c_str());
 	}
 
 public:
@@ -795,56 +254,6 @@ public:
 			}
 		}
 		return nullptr;
-	}
-
-	void ResetSmoothSample()
-	{
-		_frontSample = 0;
-		for (int i = 0; i < NumSamples; i++)
-		{
-			_flickSamples[i] = 0.0;
-		}
-	}
-
-	float GetSmoothedStickRotation(float value, float bottomThreshold, float topThreshold, int maxSamples)
-	{
-		// which sample in the circular smoothing buffer do we want to write over?
-		_frontSample--;
-		if (_frontSample < 0)
-			_frontSample = NumSamples - 1;
-		// if this input is bigger than the top threshold, it'll all be consumed immediately; 0 gets put into the smoothing buffer. If it's below the bottomThreshold, it'll all be put in the smoothing buffer
-		float length = abs(value);
-		float immediateFactor;
-		if (topThreshold <= bottomThreshold)
-		{
-			immediateFactor = 1.0f;
-		}
-		else
-		{
-			immediateFactor = (length - bottomThreshold) / (topThreshold - bottomThreshold);
-		}
-		// clamp to [0, 1] range
-		if (immediateFactor < 0.0f)
-		{
-			immediateFactor = 0.0f;
-		}
-		else if (immediateFactor > 1.0f)
-		{
-			immediateFactor = 1.0f;
-		}
-		float smoothFactor = 1.0f - immediateFactor;
-		// now we can push the smooth sample (or as much of it as we want smoothed)
-		float frontSample = _flickSamples[_frontSample] = value * smoothFactor;
-		// and now calculate smoothed result
-		float result = frontSample / maxSamples;
-		for (int i = 1; i < maxSamples; i++)
-		{
-			int rotatedIndex = (_frontSample + i) % NumSamples;
-			frontSample = _flickSamples[rotatedIndex];
-			result += frontSample / maxSamples;
-		}
-		// finally, add immediate portion
-		return result + value * immediateFactor;
 	}
 
 	void GetSmoothedGyro(float x, float y, float length, float bottomThreshold, float topThreshold, int maxSamples, float &outX, float &outY)
@@ -900,9 +309,11 @@ private:
 		return button;
 	}
 
-		bool isSoftPullPressed(int triggerIndex, float triggerPosition)
+	bool isSoftPullPressed(int triggerIndex, float triggerPosition)
 	{
-		float threshold = getSetting(SettingID::TRIGGER_THRESHOLD);
+		float threshold = _context->getSetting(SettingID::TRIGGER_THRESHOLD);
+		if (platform_controller_type == JS_TYPE_DS && _context->getSetting<Switch>(SettingID::ADAPTIVE_TRIGGER) == Switch::ON)
+			threshold = max(0.f, threshold); // hair trigger disabled on dual sense when adaptive triggers are active
 		if (threshold >= 0)
 		{
 			return triggerPosition > threshold;
@@ -949,26 +360,28 @@ public:
 		if (pressed)
 		{
 			Pressed evt;
-			evt.time_now = time_now;
-			evt.turboTime = getSetting(SettingID::TURBO_PERIOD);
-			evt.holdTime = getSetting(SettingID::HOLD_PRESS_TIME);
-			evt.dblPressWindow = getSetting(SettingID::DBL_PRESS_WINDOW);
+			evt.time_now = _context->time_now;
+			evt.turboTime = _context->getSetting(SettingID::TURBO_PERIOD);
+			evt.holdTime = _context->getSetting(SettingID::HOLD_PRESS_TIME);
+			evt.dblPressWindow = _context->getSetting(SettingID::DBL_PRESS_WINDOW);
 			GetButton(id, touchpadID)->sendEvent(evt);
 		}
 		else
 		{
 			Released evt;
-			evt.time_now = time_now;
-			evt.turboTime = getSetting(SettingID::TURBO_PERIOD);
-			evt.holdTime = getSetting(SettingID::HOLD_PRESS_TIME);
-			evt.dblPressWindow = getSetting(SettingID::DBL_PRESS_WINDOW);
+			evt.time_now = _context->time_now;
+			evt.turboTime = _context->getSetting(SettingID::TURBO_PERIOD);
+			evt.holdTime = _context->getSetting(SettingID::HOLD_PRESS_TIME);
+			evt.dblPressWindow = _context->getSetting(SettingID::DBL_PRESS_WINDOW);
 			GetButton(id, touchpadID)->sendEvent(evt);
 		}
 	}
 
 	float getTriggerEffectStartPos()
 	{
-		float threshold = getSetting(SettingID::TRIGGER_THRESHOLD);
+		float threshold = _context->getSetting(SettingID::TRIGGER_THRESHOLD);
+		if (platform_controller_type == JS_TYPE_DS && _context->getSetting<Switch>(SettingID::ADAPTIVE_TRIGGER) == Switch::ON)
+				threshold = max(0.f, threshold); // hair trigger disabled on dual sense when adaptive triggers are active
 		return clamp(threshold + 0.05f, 0.0f, 1.0f);
 	}
 
@@ -991,8 +404,8 @@ public:
 
 		if (mode == TriggerMode::X_LT)
 		{
-			if (btnCommon->_vigemController)
-				btnCommon->_vigemController->setLeftTrigger(position);
+			if (_context->_vigemController)
+				_context->_vigemController->setLeftTrigger(position);
 			trigger_rumble.mode = 1;
 			trigger_rumble.strength = 0;
 			trigger_rumble.start = offset + 0.05 * range;
@@ -1000,8 +413,8 @@ public:
 		}
 		else if (mode == TriggerMode::X_RT)
 		{
-			if (btnCommon->_vigemController)
-				btnCommon->_vigemController->setRightTrigger(position);
+			if (_context->_vigemController)
+				_context->_vigemController->setRightTrigger(position);
 			trigger_rumble.mode = 1;
 			trigger_rumble.strength = 0;
 			trigger_rumble.start = offset + 0.05 * range;
@@ -1043,12 +456,12 @@ public:
 				{
 					// Start counting press time to see if soft binding should be skipped
 					triggerState[idxState] = DstState::PressStart;
-					buttons[int(softIndex)].sendEvent(time_now);
+					buttons[int(softIndex)].sendEvent(_context->time_now);
 				}
 				else if (mode == TriggerMode::MAY_SKIP_R || mode == TriggerMode::MUST_SKIP_R)
 				{
 					triggerState[idxState] = DstState::PressStartResp;
-					buttons[int(softIndex)].sendEvent(time_now);
+					buttons[int(softIndex)].sendEvent(_context->time_now);
 					handleButtonChange(softIndex, true);
 				}
 				else // mode == NO_FULL or NO_SKIP, NO_SKIP_EXCLUSIVE
@@ -1078,7 +491,8 @@ public:
 			}
 			else
 			{
-				if (buttons[int(softIndex)].sendEvent(GetDuration{ time_now }).out_duration >= getSetting(SettingID::TRIGGER_SKIP_DELAY))
+				GetDuration getter{ _context->time_now };
+				if (buttons[int(softIndex)].sendEvent(getter).out_duration >= _context->getSetting(SettingID::TRIGGER_SKIP_DELAY))
 				{
 					if (mode == TriggerMode::MUST_SKIP)
 					{
@@ -1086,7 +500,7 @@ public:
 					}
 					triggerState[idxState] = DstState::SoftPress;
 					// Reset the time for hold soft press purposes.
-					buttons[int(softIndex)].sendEvent(time_now);
+					buttons[int(softIndex)].sendEvent(_context->time_now);
 					handleButtonChange(softIndex, true);
 				}
 			}
@@ -1109,7 +523,7 @@ public:
 			}
 			else
 			{
-				if (buttons[int(softIndex)].sendEvent(GetDuration{ time_now }).out_duration >= getSetting(SettingID::TRIGGER_SKIP_DELAY))
+				if (buttons[int(softIndex)].sendEvent(GetDuration{ _context->time_now }).out_duration >= _context->getSetting(SettingID::TRIGGER_SKIP_DELAY))
 				{
 					if (mode == TriggerMode::MUST_SKIP_R)
 					{
@@ -1172,7 +586,7 @@ public:
 				if (mode == TriggerMode::NO_SKIP || mode == TriggerMode::MAY_SKIP || mode == TriggerMode::MAY_SKIP_R)
 				{
 					trigger_rumble.strength = min(int(UINT16_MAX), trigger_rumble.strength + int(1/30.f * tick_time  * UINT16_MAX));
-					trigger_rumble.start = offset + min(0.89, trigger_rumble.start + 1/150. * tick_time) * range;
+					trigger_rumble.start = min(offset + 0.89* range, trigger_rumble.start + 1/150. * tick_time * range);
 					trigger_rumble.end = trigger_rumble.start + 0.1 * range;
 					handleButtonChange(softIndex, true);
 					if (position == 1.0)
@@ -1185,7 +599,7 @@ public:
 				else if (mode == TriggerMode::NO_SKIP_EXCLUSIVE)
 				{
 					trigger_rumble.strength = min(int(UINT16_MAX), trigger_rumble.strength + int(1/30.f * tick_time * UINT16_MAX));
-					trigger_rumble.start = offset + min(0.89, trigger_rumble.start + 1/150. * tick_time) * range;
+					trigger_rumble.start = min(offset + 0.89* range, trigger_rumble.start + 1/150. * tick_time * range);
 					trigger_rumble.end = trigger_rumble.start + 0.1 * range;
 					handleButtonChange(softIndex, false);
 					if (position == 1.0)
@@ -1253,34 +667,7 @@ public:
 		// Use chord stack to know if a button is pressed, because the state from the callback
 		// only holds half the information when it comes to a joycon pair.
 		// Also, NONE is always part of the stack (for chord handling) but NONE is never pressed.
-		return btn != ButtonID::NONE && find(btnCommon->chordStack.begin(), btnCommon->chordStack.end(), btn) != btnCommon->chordStack.end();
-	}
-
-	// return true if it hits the outer deadzone
-	bool processDeadZones(float &x, float &y, float innerDeadzone, float outerDeadzone)
-	{
-		float length = sqrtf(x * x + y * y);
-		if (length <= innerDeadzone)
-		{
-			x = 0.0f;
-			y = 0.0f;
-			return false;
-		}
-		if (length >= outerDeadzone)
-		{
-			// normalize
-			x /= length;
-			y /= length;
-			return true;
-		}
-		if (length > innerDeadzone)
-		{
-			float scaledLength = (length - innerDeadzone) / (outerDeadzone - innerDeadzone);
-			float rescale = scaledLength / length;
-			x *= rescale;
-			y *= rescale;
-		}
-		return false;
+		return btn != ButtonID::NONE && find(_context->chordStack.begin(), _context->chordStack.end(), btn) != _context->chordStack.end();
 	}
 
 	void updateGridSize(size_t noTouchBtns)
@@ -1293,7 +680,7 @@ public:
 		for (int i = gridButtons.size(); i < noGridBtns; ++i)
 		{
 			JSMButton &map(touch_buttons[i + 5]);
-			gridButtons.push_back(DigitalButton(btnCommon, map));
+			gridButtons.push_back(DigitalButton(_context, map));
 		}
 	}
 };
@@ -1405,7 +792,7 @@ void connectDevices(bool mergeJoycons = true)
 			if (mergeJoycons && otherJoyCon != handle_to_joyshock.end())
 			{
 				// The second JC points to the same common buttons as the other one.
-				js.reset(new JoyShock(handle, type, otherJoyCon->second->btnCommon));
+				js.reset(new JoyShock(handle, type, otherJoyCon->second->_context));
 			}
 			else
 			{
@@ -1660,346 +1047,6 @@ bool do_WHITELIST_REMOVE()
 	return true;
 }
 
-static float handleFlickStick(float calX, float calY, float lastCalX, float lastCalY, float stickLength, bool &isFlicking, shared_ptr<JoyShock> jc, float mouseCalibrationFactor, bool FLICK_ONLY, bool ROTATE_ONLY)
-{
-	float camSpeedX = 0.0f;
-	// let's centre this
-	float offsetX = calX;
-	float offsetY = calY;
-	float lastOffsetX = lastCalX;
-	float lastOffsetY = lastCalY;
-	float flickStickThreshold = 0.995f;
-	if (isFlicking)
-	{
-		flickStickThreshold *= 0.9f;
-	}
-	if (stickLength >= flickStickThreshold)
-	{
-		float stickAngle = atan2(-offsetX, offsetY);
-		//COUT << ", %.4f\n", lastOffsetLength);
-		if (!isFlicking)
-		{
-			// bam! new flick!
-			isFlicking = true;
-			if (!ROTATE_ONLY)
-			{
-				auto flick_snap_mode = jc->getSetting<FlickSnapMode>(SettingID::FLICK_SNAP_MODE);
-				if (flick_snap_mode != FlickSnapMode::NONE)
-				{
-					// handle snapping
-					float snapInterval = PI;
-					if (flick_snap_mode == FlickSnapMode::FOUR)
-					{
-						snapInterval = PI / 2.0f; // 90 degrees
-					}
-					else if (flick_snap_mode == FlickSnapMode::EIGHT)
-					{
-						snapInterval = PI / 4.0f; // 45 degrees
-					}
-					float snappedAngle = round(stickAngle / snapInterval) * snapInterval;
-					// lerp by snap strength
-					auto flick_snap_strength = jc->getSetting(SettingID::FLICK_SNAP_STRENGTH);
-					stickAngle = stickAngle * (1.0f - flick_snap_strength) + snappedAngle * flick_snap_strength;
-				}
-				if (abs(stickAngle) * (180.0f / PI) < jc->getSetting(SettingID::FLICK_DEADZONE_ANGLE))
-				{
-					stickAngle = 0.0f;
-				}
-
-				jc->started_flick = chrono::steady_clock::now();
-				jc->delta_flick = stickAngle;
-				jc->flick_percent_done = 0.0f;
-				jc->ResetSmoothSample();
-				jc->flick_rotation_counter = stickAngle; // track all rotation for this flick
-				// TODO: All these printfs should be hidden behind a setting. User might not want them.
-				COUT << "Flick: " << setprecision(3) << stickAngle * (180.0f / (float)PI) << " degrees" << endl;
-			}
-		}
-		else
-		{
-			if (!FLICK_ONLY)
-			{
-				// not new? turn camera?
-				float lastStickAngle = atan2(-lastOffsetX, lastOffsetY);
-				float angleChange = stickAngle - lastStickAngle;
-				// https://stackoverflow.com/a/11498248/1130520
-				angleChange = fmod(angleChange + PI, 2.0f * PI);
-				if (angleChange < 0)
-					angleChange += 2.0f * PI;
-				angleChange -= PI;
-				jc->flick_rotation_counter += angleChange; // track all rotation for this flick
-				float flickSpeedConstant = jc->getSetting(SettingID::REAL_WORLD_CALIBRATION) * mouseCalibrationFactor / jc->getSetting(SettingID::IN_GAME_SENS);
-				float flickSpeed = -(angleChange * flickSpeedConstant);
-				int maxSmoothingSamples = min(jc->NumSamples, (int)ceil(64.0f / tick_time.get())); // target a max smoothing window size of 64ms
-				float stepSize = 0.01f;                                                            // and we only want full on smoothing when the stick change each time we poll it is approximately the minimum stick resolution
-				                                                                                   // the fact that we're using radians makes this really easy
-				auto rotate_smooth_override = jc->getSetting(SettingID::ROTATE_SMOOTH_OVERRIDE);
-				if (rotate_smooth_override < 0.0f)
-				{
-					camSpeedX = jc->GetSmoothedStickRotation(flickSpeed, flickSpeedConstant * stepSize * 2.0f, flickSpeedConstant * stepSize * 4.0f, maxSmoothingSamples);
-				}
-				else
-				{
-					camSpeedX = jc->GetSmoothedStickRotation(flickSpeed, flickSpeedConstant * rotate_smooth_override, flickSpeedConstant * rotate_smooth_override * 2.0f, maxSmoothingSamples);
-				}
-			}
-		}
-	}
-	else if (isFlicking)
-	{
-		// was a flick! how much was the flick and rotation?
-		if (!FLICK_ONLY && !ROTATE_ONLY)
-		{
-			last_flick_and_rotation = abs(jc->flick_rotation_counter) / (2.0f * PI);
-		}
-		isFlicking = false;
-	}
-	// do the flicking
-	float secondsSinceFlick = ((float)chrono::duration_cast<chrono::microseconds>(jc->time_now - jc->started_flick).count()) / 1000000.0f;
-	float newPercent = secondsSinceFlick / jc->getSetting(SettingID::FLICK_TIME);
-
-	// don't divide by zero
-	if (abs(jc->delta_flick) > 0.0f)
-	{
-		newPercent = newPercent / pow(abs(jc->delta_flick) / PI, jc->getSetting(SettingID::FLICK_TIME_EXPONENT));
-	}
-
-	if (newPercent > 1.0f)
-		newPercent = 1.0f;
-	// warping towards 1.0
-	float oldShapedPercent = 1.0f - jc->flick_percent_done;
-	oldShapedPercent *= oldShapedPercent;
-	oldShapedPercent = 1.0f - oldShapedPercent;
-	//float oldShapedPercent = jc->flick_percent_done;
-	jc->flick_percent_done = newPercent;
-	newPercent = 1.0f - newPercent;
-	newPercent *= newPercent;
-	newPercent = 1.0f - newPercent;
-	float camSpeedChange = (newPercent - oldShapedPercent) * jc->delta_flick * jc->getSetting(SettingID::REAL_WORLD_CALIBRATION) * -mouseCalibrationFactor / jc->getSetting(SettingID::IN_GAME_SENS);
-	camSpeedX += camSpeedChange;
-
-	return camSpeedX;
-}
-
-void processStick(shared_ptr<JoyShock> jc, float stickX, float stickY, float lastX, float lastY, float innerDeadzone, float outerDeadzone,
-  RingMode ringMode, StickMode stickMode, ButtonID ringId, ButtonID leftId, ButtonID rightId, ButtonID upId, ButtonID downId,
-  ControllerOrientation controllerOrientation, float mouseCalibrationFactor, float deltaTime, float &acceleration, FloatXY &lastAreaCal,
-  bool &isFlicking, bool &ignoreStickMode, bool &anyStickInput, bool &lockMouse, float &camSpeedX, float &camSpeedY, ScrollAxis *scroll, int touchpadIndex = -1)
-{
-	float temp;
-	switch (controllerOrientation)
-	{
-	case ControllerOrientation::LEFT:
-		temp = stickX;
-		stickX = -stickY;
-		stickY = temp;
-		temp = lastX;
-		lastX = -lastY;
-		lastY = temp;
-		break;
-	case ControllerOrientation::RIGHT:
-		temp = stickX;
-		stickX = stickY;
-		stickY = -temp;
-		temp = lastX;
-		lastX = lastY;
-		lastY = -temp;
-		break;
-	case ControllerOrientation::BACKWARD:
-		stickX = -stickX;
-		stickY = -stickY;
-		lastX = -lastX;
-		lastY = -lastY;
-		break;
-	}
-
-	// Stick inversion
-	stickX *= jc->getSetting(SettingID::STICK_AXIS_X);
-	stickY *= jc->getSetting(SettingID::STICK_AXIS_Y);
-	lastX *= jc->getSetting(SettingID::STICK_AXIS_X);
-	lastY *= jc->getSetting(SettingID::STICK_AXIS_Y);
-
-	outerDeadzone = 1.0f - outerDeadzone;
-	jc->processDeadZones(lastX, lastY, innerDeadzone, outerDeadzone);
-	bool pegged = jc->processDeadZones(stickX, stickY, innerDeadzone, outerDeadzone);
-	float absX = abs(stickX);
-	float absY = abs(stickY);
-	bool left = stickX < -0.5f * absY;
-	bool right = stickX > 0.5f * absY;
-	bool down = stickY < -0.5f * absX;
-	bool up = stickY > 0.5f * absX;
-	float stickLength = sqrt(stickX * stickX + stickY * stickY);
-	bool ring = ringMode == RingMode::INNER && stickLength > 0.0f && stickLength < 0.7f ||
-	  ringMode == RingMode::OUTER && stickLength > 0.7f;
-	jc->handleButtonChange(ringId, ring, touchpadIndex);
-
-	bool rotateOnly = stickMode == StickMode::ROTATE_ONLY;
-	bool flickOnly = stickMode == StickMode::FLICK_ONLY;
-	if (ignoreStickMode && stickMode == StickMode::INVALID && stickX == 0 && stickY == 0)
-	{
-		// clear ignore flag when stick is back at neutral
-		ignoreStickMode = false;
-	}
-	else if (stickMode == StickMode::FLICK || flickOnly || rotateOnly)
-	{
-		camSpeedX += handleFlickStick(stickX, stickY, lastX, lastY, stickLength, isFlicking, jc, mouseCalibrationFactor, flickOnly, rotateOnly);
-		anyStickInput = pegged;
-	}
-	else if (stickMode == StickMode::AIM)
-	{
-		// camera movement
-		if (!pegged)
-		{
-			acceleration = 1.0f; // reset
-		}
-		float stickLength = sqrt(stickX * stickX + stickY * stickY);
-		if (stickLength != 0.0f)
-		{
-			anyStickInput = true;
-			float warpedStickLengthX = pow(stickLength, jc->getSetting(SettingID::STICK_POWER));
-			float warpedStickLengthY = warpedStickLengthX;
-			warpedStickLengthX *= jc->getSetting<FloatXY>(SettingID::STICK_SENS).first * jc->getSetting(SettingID::REAL_WORLD_CALIBRATION) / os_mouse_speed / jc->getSetting(SettingID::IN_GAME_SENS);
-			warpedStickLengthY *= jc->getSetting<FloatXY>(SettingID::STICK_SENS).second * jc->getSetting(SettingID::REAL_WORLD_CALIBRATION) / os_mouse_speed / jc->getSetting(SettingID::IN_GAME_SENS);
-			camSpeedX += stickX / stickLength * warpedStickLengthX * acceleration * deltaTime;
-			camSpeedY += stickY / stickLength * warpedStickLengthY * acceleration * deltaTime;
-			if (pegged)
-			{
-				acceleration += jc->getSetting(SettingID::STICK_ACCELERATION_RATE) * deltaTime;
-				auto cap = jc->getSetting(SettingID::STICK_ACCELERATION_CAP);
-				if (acceleration > cap)
-				{
-					acceleration = cap;
-				}
-			}
-		}
-	}
-	else if (stickMode == StickMode::MOUSE_AREA)
-	{
-		auto mouse_ring_radius = jc->getSetting(SettingID::MOUSE_RING_RADIUS);
-		if (stickX != 0.0f || stickY != 0.0f)
-		{
-			// use difference with last cal values
-			float mouseX = (stickX - lastAreaCal.x()) * mouse_ring_radius;
-			float mouseY = (stickY - lastAreaCal.y()) * -1 * mouse_ring_radius;
-			// do it!
-			moveMouse(mouseX, mouseY);
-			lastAreaCal = { stickX, stickY };
-		}
-		else
-		{
-			// Return to center
-			moveMouse(lastAreaCal.x() * -1 * mouse_ring_radius, lastAreaCal.y() * mouse_ring_radius);
-			lastAreaCal = { 0, 0 };
-		}
-	}
-	else if (stickMode == StickMode::MOUSE_RING)
-	{
-		if (stickX != 0.0f || stickY != 0.0f)
-		{
-			auto mouse_ring_radius = jc->getSetting(SettingID::MOUSE_RING_RADIUS);
-			float stickLength = sqrt(stickX * stickX + stickY * stickY);
-			float normX = stickX / stickLength;
-			float normY = stickY / stickLength;
-			// use screen resolution
-			float mouseX = (float)jc->getSetting(SettingID::SCREEN_RESOLUTION_X) * 0.5f + 0.5f + normX * mouse_ring_radius;
-			float mouseY = (float)jc->getSetting(SettingID::SCREEN_RESOLUTION_Y) * 0.5f + 0.5f - normY * mouse_ring_radius;
-			// normalize
-			mouseX = mouseX / jc->getSetting(SettingID::SCREEN_RESOLUTION_X);
-			mouseY = mouseY / jc->getSetting(SettingID::SCREEN_RESOLUTION_Y);
-			// do it!
-			setMouseNorm(mouseX, mouseY);
-			lockMouse = true;
-		}
-	}
-	else if (stickMode == StickMode::SCROLL_WHEEL)
-	{
-		if (scroll)
-		{
-			if (stickX == 0 && stickY == 0)
-			{
-				scroll->Reset(jc->time_now);
-			}
-			else if (lastX != 0 && lastY != 0)
-			{
-				float lastAngle = atan2f(lastY, lastX) / PI * 180.f;
-				float angle = atan2f(stickY, stickX) / PI * 180.f;
-				if (((lastAngle > 0) ^ (angle > 0)) && fabsf(angle - lastAngle) > 270.f) // Handle loop the loop
-				{
-					lastAngle = lastAngle > 0 ? lastAngle - 360.f : lastAngle + 360.f;
-				}
-				//COUT << "Stick moved from " << lastAngle << " to " << angle; // << endl;
-				scroll->ProcessScroll(angle - lastAngle, jc->getSetting<FloatXY>(SettingID::SCROLL_SENS).x(), jc->time_now);
-			}
-		}
-	}
-	else if (stickMode == StickMode::NO_MOUSE || stickMode == StickMode::INNER_RING || stickMode == StickMode::OUTER_RING)
-	{ // Do not do if invalid
-		// left!
-		jc->handleButtonChange(leftId, left, touchpadIndex);
-		// right!
-		jc->handleButtonChange(rightId, right, touchpadIndex);
-		// up!
-		jc->handleButtonChange(upId, up, touchpadIndex);
-		// down!
-		jc->handleButtonChange(downId, down, touchpadIndex);
-
-		anyStickInput = left || right || up || down; // ring doesn't count
-	}
-	else if (stickMode == StickMode::LEFT_STICK)
-	{
-		if (jc->btnCommon->_vigemController)
-		{
-			jc->btnCommon->_vigemController->setLeftStick(stickX, stickY);
-		}
-	}
-	else if (stickMode == StickMode::RIGHT_STICK)
-	{
-		if (jc->btnCommon->_vigemController)
-		{
-			jc->btnCommon->_vigemController->setRightStick(stickX, stickY);
-		}
-	}
-}
-
-void TouchStick::handleTouchStickChange(shared_ptr<JoyShock> js, bool down, short movX, short movY, float delta_time)
-{
-	float stickX = down ? clamp<float>((_currentLocation.x() + movX) / js->getSetting(SettingID::TOUCH_STICK_RADIUS), -1.f, 1.f) : 0.f;
-	float stickY = down ? clamp<float>((_currentLocation.y() - movY) / js->getSetting(SettingID::TOUCH_STICK_RADIUS), -1.f, 1.f) : 0.f;
-	float innerDeadzone = js->getSetting(SettingID::TOUCH_DEADZONE_INNER);
-	RingMode ringMode = js->getSetting<RingMode>(SettingID::TOUCH_RING_MODE);
-	StickMode stickMode = js->getSetting<StickMode>(SettingID::TOUCH_STICK_MODE);
-	ControllerOrientation controllerOrientation = js->getSetting<ControllerOrientation>(SettingID::CONTROLLER_ORIENTATION);
-	float mouseCalibrationFactor = 180.0f / PI / os_mouse_speed;
-
-	bool anyStickInput = false;
-	bool lockMouse = false;
-	float camSpeedX = 0.f;
-	float camSpeedY = 0.f;
-
-	processStick(js, stickX, stickY, _currentLocation.x(), _currentLocation.y(), innerDeadzone, 0.f,
-	  ringMode, stickMode, ButtonID::TRING, ButtonID::TLEFT, ButtonID::TRIGHT, ButtonID::TUP, ButtonID::TDOWN,
-	  controllerOrientation, mouseCalibrationFactor, delta_time, touch_stick_acceleration, touch_last_cal,
-	  is_flicking_touch, ignore_motion_stick, anyStickInput, lockMouse, camSpeedX, camSpeedY, &js->touch_scroll_x, _index);
-
-	moveMouse(camSpeedX * js->getSetting(SettingID::STICK_AXIS_X), -camSpeedY * js->getSetting(SettingID::STICK_AXIS_Y));
-
-	if (!down && _prevDown)
-	{
-		_currentLocation = { 0.f, 0.f };
-
-		is_flicking_touch = false;
-		touch_last_cal;
-		touch_stick_acceleration = 1.0;
-		ignore_motion_stick = false;
-	}
-	else
-	{
-		_currentLocation = { _currentLocation.x() + movX, _currentLocation.y() - movY };
-	}
-
-	_prevDown = down;
-}
-
 void DisplayTouchInfo(int id, optional<FloatXY> xy, optional<FloatXY> prevXY = nullopt)
 {
 	if (xy)
@@ -2041,7 +1088,7 @@ void TouchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 	if (!js || jsl->GetTouchpadDimension(jcHandle, tpSizeX, tpSizeY) == false)
 		return;
 
-	lock_guard guard(js->btnCommon->callback_lock);
+	lock_guard guard(js->_context->callback_lock);
 
 	TOUCH_POINT point0, point1;
 
@@ -2054,7 +1101,7 @@ void TouchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 	point1.movX = js->prevTouchState.t1Down ? (newState.t1X - js->prevTouchState.t1X) * tpSizeX : 0.f;
 	point1.movY = js->prevTouchState.t1Down ? (newState.t1Y - js->prevTouchState.t1Y) * tpSizeY : 0.f;
 
-	auto mode = js->getSetting<TouchpadMode>(SettingID::TOUCHPAD_MODE);
+	auto mode = js->_context->getSetting<TouchpadMode>(SettingID::TOUCHPAD_MODE);
 	js->handleButtonChange(ButtonID::TOUCH, point0.isDown() || point1.isDown());
 	if (!point0.isDown() && !point1.isDown())
 	{
@@ -2063,11 +1110,11 @@ void TouchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 			return id >= ButtonID::T1;
 		};
 
-		for (auto currentlyActive = find_if(js->btnCommon->chordStack.begin(), js->btnCommon->chordStack.end(), IS_TOUCH_BUTTON);
-		     currentlyActive != js->btnCommon->chordStack.end();
-		     currentlyActive = find_if(js->btnCommon->chordStack.begin(), js->btnCommon->chordStack.end(), IS_TOUCH_BUTTON))
+		for (auto currentlyActive = find_if(js->_context->chordStack.begin(), js->_context->chordStack.end(), IS_TOUCH_BUTTON);
+		     currentlyActive != js->_context->chordStack.end();
+		     currentlyActive = find_if(js->_context->chordStack.begin(), js->_context->chordStack.end(), IS_TOUCH_BUTTON))
 		{
-			js->btnCommon->chordStack.erase(currentlyActive);
+			js->_context->chordStack.erase(currentlyActive);
 		}
 	}
 	if (mode == TouchpadMode::GRID_AND_STICK)
@@ -2100,8 +1147,8 @@ void TouchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 		}
 
 		// Handle stick
-		js->touchpads[0].handleTouchStickChange(js, point0.isDown(), point0.movX, point0.movY, delta_time);
-		js->touchpads[1].handleTouchStickChange(js, point1.isDown(), point1.movX, point1.movY, delta_time);
+		js->touchpads[0].handleTouchStickChange(js, point0.isDown(), point0.movX, point0.movY, delta_time, js->controller_split_type);
+		js->touchpads[1].handleTouchStickChange(js, point1.isDown(), point1.movX, point1.movY, delta_time, js->controller_split_type);
 	}
 	else if (mode == TouchpadMode::MOUSE)
 	{
@@ -2120,26 +1167,26 @@ void TouchCallback(int jcHandle, TOUCH_STATE newState, TOUCH_STATE prevState, fl
 			//	float oldDist = sqrt(x * x + y * y);
 			//	if (angle != oldAngle)
 			//		DEBUG_LOG << "Angle went from " << oldAngle << " degrees to " << angle << " degress. Diff is " << angle - oldAngle << " degrees. ";
-			//	js->touch_scroll_x.ProcessScroll(angle - oldAngle, js->getSetting<FloatXY>(SettingID::SCROLL_SENS).x(), js->time_now);
+			//	js->touch_scroll_x.ProcessScroll(angle - oldAngle, js->_context->getSetting<FloatXY>(SettingID::SCROLL_SENS).x(), js->_context->time_now);
 			//	if (dist != oldDist)
 			//		DEBUG_LOG << "Dist went from " << oldDist << " points to " << dist << " points. Diff is " << dist - oldDist << " points. ";
-			//	js->touch_scroll_y.ProcessScroll(dist - oldDist, js->getSetting<FloatXY>(SettingID::SCROLL_SENS).y(), js->time_now);
+			//	js->touch_scroll_y.ProcessScroll(dist - oldDist, js->_context->getSetting<FloatXY>(SettingID::SCROLL_SENS).y(), js->_context->time_now);
 			//}
 			//else
 			//{
-			//	js->touch_scroll_x.Reset(js->time_now);
-			//	js->touch_scroll_y.Reset(js->time_now);
+			//	js->touch_scroll_x.Reset(js->_context->time_now);
+			//	js->touch_scroll_y.Reset(js->_context->time_now);
 			//}
 		//}
 		//else
 		//{
-		//	js->touch_scroll_x.Reset(js->time_now);
-		//	js->touch_scroll_y.Reset(js->time_now);
+		//	js->touch_scroll_x.Reset(js->_context->time_now);
+		//	js->touch_scroll_y.Reset(js->_context->time_now);
 		//  if (point0.isDown() ^ point1.isDown()) // XOR
 			if (point0.isDown() || point1.isDown())
 			{
 				TOUCH_POINT *downPoint = point0.isDown() ? &point0 : &point1;
-				FloatXY sens = js->getSetting<FloatXY>(SettingID::TOUCHPAD_SENS);
+				FloatXY sens = js->_context->getSetting<FloatXY>(SettingID::TOUCHPAD_SENS);
 				// if(downPoint->movX || downPoint->movY) cout << "Moving the cursor by " << std::dec << int(downPoint->movX) << " h and " << int(downPoint->movY) << " v" << endl;
 				moveMouse(downPoint->movX * sens.x(), downPoint->movY * sens.y());
 				// Ignore second touch point in this mode for now until gestures gets handled here
@@ -2155,11 +1202,11 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	shared_ptr<JoyShock> jc = handle_to_joyshock[jcHandle];
 	if (jc == nullptr)
 		return;
-	jc->btnCommon->callback_lock.lock();
+	jc->_context->callback_lock.lock();
 
 	auto timeNow = chrono::steady_clock::now();
-	deltaTime = ((float)chrono::duration_cast<chrono::microseconds>(timeNow - jc->time_now).count()) / 1000000.0f;
-	jc->time_now = timeNow;
+	deltaTime = ((float)chrono::duration_cast<chrono::microseconds>(timeNow - jc->_context->time_now).count()) / 1000000.0f;
+	jc->_context->time_now = timeNow;
 
 	if (triggersCalibrating)
 	{
@@ -2265,7 +1312,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		}
 		jsl->SetRightTriggerEffect(jcHandle, jc->right_effect);
 		jsl->SetLeftTriggerEffect(jcHandle, jc->left_effect);
-		jc->btnCommon->callback_lock.unlock();
+		jc->_context->callback_lock.unlock();
 		return;
 	}
 
@@ -2312,7 +1359,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 
 	float gyroX = 0.0;
 	float gyroY = 0.0;
-	int mouse_x_flag = (int)jc->getSetting<GyroAxisMask>(SettingID::MOUSE_X_FROM_GYRO_AXIS);
+	int mouse_x_flag = (int)jc->_context->getSetting<GyroAxisMask>(SettingID::MOUSE_X_FROM_GYRO_AXIS);
 	if ((mouse_x_flag & (int)GyroAxisMask::X) > 0)
 	{
 		gyroX += inGyroX;
@@ -2325,7 +1372,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	{
 		gyroX -= inGyroZ;
 	}
-	int mouse_y_flag = (int)jc->getSetting<GyroAxisMask>(SettingID::MOUSE_Y_FROM_GYRO_AXIS);
+	int mouse_y_flag = (int)jc->_context->getSetting<GyroAxisMask>(SettingID::MOUSE_Y_FROM_GYRO_AXIS);
 	if ((mouse_y_flag & (int)GyroAxisMask::X) > 0)
 	{
 		gyroY -= inGyroX;
@@ -2341,17 +1388,17 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	float gyroLength = sqrt(gyroX * gyroX + gyroY * gyroY);
 	// do gyro smoothing
 	// convert gyro smooth time to number of samples
-	auto numGyroSamples = 1.f / tick_time * jc->getSetting(SettingID::GYRO_SMOOTH_TIME); // samples per second * seconds = samples
+	auto numGyroSamples = 1.f / tick_time * jc->_context->getSetting(SettingID::GYRO_SMOOTH_TIME); // samples per second * seconds = samples
 	if (numGyroSamples < 1)
 		numGyroSamples = 1; // need at least 1 sample
-	auto threshold = jc->getSetting(SettingID::GYRO_SMOOTH_THRESHOLD);
+	auto threshold = jc->_context->getSetting(SettingID::GYRO_SMOOTH_THRESHOLD);
 	jc->GetSmoothedGyro(gyroX, gyroY, gyroLength, threshold / 2.0f, threshold, int(numGyroSamples), gyroX, gyroY);
 	//COUT << "%d Samples for threshold: %0.4f\n", numGyroSamples, gyro_smooth_threshold * maxSmoothingSamples);
 
 	// now, honour gyro_cutoff_speed
 	gyroLength = sqrt(gyroX * gyroX + gyroY * gyroY);
-	auto speed = jc->getSetting(SettingID::GYRO_CUTOFF_SPEED);
-	auto recovery = jc->getSetting(SettingID::GYRO_CUTOFF_RECOVERY);
+	auto speed = jc->_context->getSetting(SettingID::GYRO_CUTOFF_SPEED);
+	auto recovery = jc->_context->getSetting(SettingID::GYRO_CUTOFF_RECOVERY);
 	if (recovery > speed)
 	{
 		// we can use gyro_cutoff_speed
@@ -2376,73 +1423,65 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		gyroX = gyroY = gyroLength = 0.0f;
 	}
 
-	jc->time_now = std::chrono::steady_clock::now();
+	jc->_context->time_now = std::chrono::steady_clock::now();
 
 	// sticks!
-	ControllerOrientation controllerOrientation = jc->getSetting<ControllerOrientation>(SettingID::CONTROLLER_ORIENTATION);
+	ControllerOrientation controllerOrientation = jc->_context->getSetting<ControllerOrientation>(SettingID::CONTROLLER_ORIENTATION);
+	if (controllerOrientation == ControllerOrientation::JOYCON_SIDEWAYS)
+	{
+		if (jc->controller_split_type == JS_SPLIT_TYPE_LEFT)
+		{
+			controllerOrientation = ControllerOrientation::LEFT;
+		}
+		else if (jc->controller_split_type == JS_SPLIT_TYPE_RIGHT)
+		{
+			controllerOrientation = ControllerOrientation::RIGHT;
+		}
+		else
+		{
+			controllerOrientation = ControllerOrientation::FORWARD;
+		}
+	}
+
 	float camSpeedX = 0.0f;
 	float camSpeedY = 0.0f;
 	// account for os mouse speed and convert from radians to degrees because gyro reports in degrees per second
 	float mouseCalibrationFactor = 180.0f / PI / os_mouse_speed;
+	FloatXY sens(jc->_context->getSetting<FloatXY>(SettingID::STICK_SENS));
+	sens.first *= jc->_context->getSetting(SettingID::STICK_AXIS_X);
+	sens.second *= jc->_context->getSetting(SettingID::STICK_AXIS_Y);
 	if (jc->controller_split_type != JS_SPLIT_TYPE_RIGHT)
 	{
 		// let's do these sticks... don't want to constantly send input, so we need to compare them to last time
-		float lastCalX = jc->lastLX;
-		float lastCalY = jc->lastLY;
-		float calX = jsl->GetLeftX(jc->handle);
-		float calY = jsl->GetLeftY(jc->handle);
-
-		jc->lastLX = calX;
-		jc->lastLY = calY;
-
-		processStick(jc, calX, calY, lastCalX, lastCalY, jc->getSetting(SettingID::LEFT_STICK_DEADZONE_INNER), jc->getSetting(SettingID::LEFT_STICK_DEADZONE_OUTER),
-		  jc->getSetting<RingMode>(SettingID::LEFT_RING_MODE), jc->getSetting<StickMode>(SettingID::LEFT_STICK_MODE),
-		  ButtonID::LRING, ButtonID::LLEFT, ButtonID::LRIGHT, ButtonID::LUP, ButtonID::LDOWN, controllerOrientation,
-		  mouseCalibrationFactor, deltaTime, jc->left_acceleration, jc->left_last_cal, jc->is_flicking_left, jc->ignore_left_stick_mode, leftAny, lockMouse, camSpeedX, camSpeedY, &jc->left_scroll);
+		FloatXY cal = {jsl->GetLeftX(jc->handle), jsl->GetLeftY(jc->handle)};
+		leftAny = jc->leftStick.processStick(cal, sens, jc->controller_split_type, mouseCalibrationFactor, deltaTime, lockMouse, camSpeedX, camSpeedY);
 	}
 
 	if (jc->controller_split_type != JS_SPLIT_TYPE_LEFT)
 	{
-		float lastCalX = jc->lastRX;
-		float lastCalY = jc->lastRY;
-		float calX = jsl->GetRightX(jc->handle);
-		float calY = jsl->GetRightY(jc->handle);
-
-		jc->lastRX = calX;
-		jc->lastRY = calY;
-
-		processStick(jc, calX, calY, lastCalX, lastCalY, jc->getSetting(SettingID::RIGHT_STICK_DEADZONE_INNER), jc->getSetting(SettingID::RIGHT_STICK_DEADZONE_OUTER),
-		  jc->getSetting<RingMode>(SettingID::RIGHT_RING_MODE), jc->getSetting<StickMode>(SettingID::RIGHT_STICK_MODE),
-		  ButtonID::RRING, ButtonID::RLEFT, ButtonID::RRIGHT, ButtonID::RUP, ButtonID::RDOWN, controllerOrientation,
-		  mouseCalibrationFactor, deltaTime, jc->right_acceleration, jc->right_last_cal, jc->is_flicking_right, jc->ignore_right_stick_mode, rightAny, lockMouse, camSpeedX, camSpeedY, &jc->right_scroll);
+		FloatXY cal = {jsl->GetRightX(jc->handle), jsl->GetRightY(jc->handle)};
+		rightAny = jc->rightStick.processStick(cal, sens, jc->controller_split_type, mouseCalibrationFactor, deltaTime, lockMouse, camSpeedX, camSpeedY);
 	}
 
 	if (jc->controller_split_type == JS_SPLIT_TYPE_FULL ||
-	  (jc->controller_split_type & (int)jc->getSetting<JoyconMask>(SettingID::JOYCON_MOTION_MASK)) == 0)
+	  (jc->controller_split_type & (int)jc->_context->getSetting<JoyconMask>(SettingID::JOYCON_MOTION_MASK)) == 0)
 	{
 		Quat neutralQuat = Quat(jc->neutralQuatW, jc->neutralQuatX, jc->neutralQuatY, jc->neutralQuatZ);
 		Vec grav = Vec(inGravX, inGravY, inGravZ) * neutralQuat;
 
-		float lastCalX = jc->lastMotionStickX;
-		float lastCalY = jc->lastMotionStickY;
 		// use gravity vector deflection
-		float calX = grav.x;
-		float calY = -grav.z;
+		FloatXY cal = { grav.x, -grav.z };
 		float gravLength2D = sqrtf(grav.x * grav.x + grav.z * grav.z);
 		float gravStickDeflection = atan2f(gravLength2D, -grav.y) / PI;
 		if (gravLength2D > 0)
 		{
-			calX *= gravStickDeflection / gravLength2D;
-			calY *= gravStickDeflection / gravLength2D;
+			cal.first *= gravStickDeflection / gravLength2D;
+			cal.second *= gravStickDeflection / gravLength2D;
 		}
 
-		jc->lastMotionStickX = calX;
-		jc->lastMotionStickY = calY;
 
-		processStick(jc, calX, calY, lastCalX, lastCalY, jc->getSetting(SettingID::MOTION_DEADZONE_INNER) / 180.f, jc->getSetting(SettingID::MOTION_DEADZONE_OUTER) / 180.f,
-		  jc->getSetting<RingMode>(SettingID::MOTION_RING_MODE), jc->getSetting<StickMode>(SettingID::MOTION_STICK_MODE),
-		  ButtonID::MRING, ButtonID::MLEFT, ButtonID::MRIGHT, ButtonID::MUP, ButtonID::MDOWN, controllerOrientation,
-		  mouseCalibrationFactor, deltaTime, jc->motion_stick_acceleration, jc->motion_last_cal, jc->is_flicking_motion, jc->ignore_motion_stick_mode, motionAny, lockMouse, camSpeedX, camSpeedY, nullptr);
+		// motion deadzones are divided by 180
+		motionAny = jc->motionStick.processStick(cal, sens, jc->controller_split_type, mouseCalibrationFactor, deltaTime, lockMouse, camSpeedX, camSpeedY);
 
 		float gravLength3D = grav.Length();
 		if (gravLength3D > 0)
@@ -2464,7 +1503,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 				break;
 			}
 			float gravDirX = gravSideDir / gravLength3D;
-			float sinLeanThreshold = sin(jc->getSetting(SettingID::LEAN_THRESHOLD) * PI / 180.f);
+			float sinLeanThreshold = sin(jc->_context->getSetting(SettingID::LEAN_THRESHOLD) * PI / 180.f);
 			jc->handleButtonChange(ButtonID::LEAN_LEFT, gravDirX < -sinLeanThreshold);
 			jc->handleButtonChange(ButtonID::LEAN_RIGHT, gravDirX > sinLeanThreshold);
 		}
@@ -2484,7 +1523,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		jc->handleButtonChange(ButtonID::L3, buttons & (1 << JSOFFSET_LCLICK));
 
 		float lTrigger = jsl->GetLeftTrigger(jc->handle);
-		jc->handleTriggerChange(ButtonID::ZL, ButtonID::ZLF, jc->getSetting<TriggerMode>(SettingID::ZL_MODE), lTrigger, jc->left_effect);
+		jc->handleTriggerChange(ButtonID::ZL, ButtonID::ZLF, jc->_context->getSetting<TriggerMode>(SettingID::ZL_MODE), lTrigger, jc->left_effect);
 
 		bool touch = jsl->GetTouchDown(jc->handle, false) || jsl->GetTouchDown(jc->handle, true);
 		switch (jc->platform_controller_type)
@@ -2498,7 +1537,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 			float triggerpos = buttons & (1 << JSOFFSET_CAPTURE) ? 1.f :
 			  touch                                              ? 0.99f :
                                                                    0.f;
-			jc->handleTriggerChange(ButtonID::TOUCH, ButtonID::CAPTURE, jc->getSetting<TriggerMode>(SettingID::TOUCHPAD_DUAL_STAGE_MODE), triggerpos, jc->unused_effect);
+			jc->handleTriggerChange(ButtonID::TOUCH, ButtonID::CAPTURE, jc->_context->getSetting<TriggerMode>(SettingID::TOUCHPAD_DUAL_STAGE_MODE), triggerpos, jc->unused_effect);
 		}
 		break;
 		default:
@@ -2532,10 +1571,10 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		jc->handleButtonChange(ButtonID::R3, buttons & (1 << JSOFFSET_RCLICK));
 
 		float rTrigger = jsl->GetRightTrigger(jc->handle);
-		jc->handleTriggerChange(ButtonID::ZR, ButtonID::ZRF, jc->getSetting<TriggerMode>(SettingID::ZR_MODE), rTrigger, jc->right_effect);
+		jc->handleTriggerChange(ButtonID::ZR, ButtonID::ZRF, jc->_context->getSetting<TriggerMode>(SettingID::ZR_MODE), rTrigger, jc->right_effect);
 	}
 
-	if (jc->getSetting<Switch>(SettingID::ADAPTIVE_TRIGGER) == Switch::ON)
+	if (jc->_context->getSetting<Switch>(SettingID::ADAPTIVE_TRIGGER) == Switch::ON)
 	{
 		jsl->SetRightTriggerEffect(jc->handle, jc->right_effect);
 		jsl->SetLeftTriggerEffect(jc->handle, jc->left_effect);
@@ -2548,7 +1587,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	}
 
 	// Handle buttons before GYRO because some of them may affect the value of blockGyro
-	auto gyro = jc->getSetting<GyroSettings>(SettingID::GYRO_ON); // same result as getting GYRO_OFF
+	auto gyro = jc->_context->getSetting<GyroSettings>(SettingID::GYRO_ON); // same result as getting GYRO_OFF
 	switch (gyro.ignore_mode)
 	{
 	case GyroIgnoreMode::BUTTON:
@@ -2561,28 +1600,28 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		blockGyro = (gyro.always_off ^ rightAny);
 		break;
 	}
-	float gyro_x_sign_to_use = jc->getSetting(SettingID::GYRO_AXIS_X);
-	float gyro_y_sign_to_use = jc->getSetting(SettingID::GYRO_AXIS_Y);
+	float gyro_x_sign_to_use = jc->_context->getSetting(SettingID::GYRO_AXIS_X);
+	float gyro_y_sign_to_use = jc->_context->getSetting(SettingID::GYRO_AXIS_Y);
 
 	bool trackball_x_pressed = false;
 	bool trackball_y_pressed = false;
 
 	// Apply gyro modifiers in the queue from oldest to newest (thus giving priority to most recent)
-	for (auto pair : jc->btnCommon->gyroActionQueue)
+	for (auto pair : jc->_context->gyroActionQueue)
 	{
 		if (pair.second.code == GYRO_ON_BIND)
 			blockGyro = false;
 		else if (pair.second.code == GYRO_OFF_BIND)
 			blockGyro = true;
 		else if (pair.second.code == GYRO_INV_X)
-			gyro_x_sign_to_use = jc->getSetting(SettingID::GYRO_AXIS_X) * -1; // Intentionally don't support multiple inversions
+			gyro_x_sign_to_use = jc->_context->getSetting(SettingID::GYRO_AXIS_X) * -1; // Intentionally don't support multiple inversions
 		else if (pair.second.code == GYRO_INV_Y)
-			gyro_y_sign_to_use = jc->getSetting(SettingID::GYRO_AXIS_Y) * -1; // Intentionally don't support multiple inversions
+			gyro_y_sign_to_use = jc->_context->getSetting(SettingID::GYRO_AXIS_Y) * -1; // Intentionally don't support multiple inversions
 		else if (pair.second.code == GYRO_INVERT)
 		{
 			// Intentionally don't support multiple inversions
-			gyro_x_sign_to_use = jc->getSetting(SettingID::GYRO_AXIS_X) * -1;
-			gyro_y_sign_to_use = jc->getSetting(SettingID::GYRO_AXIS_Y) * -1;
+			gyro_x_sign_to_use = jc->_context->getSetting(SettingID::GYRO_AXIS_X) * -1;
+			gyro_y_sign_to_use = jc->_context->getSetting(SettingID::GYRO_AXIS_Y) * -1;
 		}
 		else if (pair.second.code == GYRO_TRACK_X)
 			trackball_x_pressed = true;
@@ -2595,7 +1634,7 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 		}
 	}
 
-	float decay = exp2f(-deltaTime * jc->getSetting(SettingID::TRACKBALL_DECAY));
+	float decay = exp2f(-deltaTime * jc->_context->getSetting(SettingID::TRACKBALL_DECAY));
 	int maxTrackballSamples = max(1, min(jc->numLastGyroSamples, (int)(1.f / deltaTime * 0.125f)));
 
 	if (!trackball_x_pressed && !trackball_y_pressed)
@@ -2655,25 +1694,25 @@ void joyShockPollCallback(int jcHandle, JOY_SHOCK_STATE state, JOY_SHOCK_STATE l
 	// optionally ignore the gyro of one of the joycons
 	if (!lockMouse &&
 	  (jc->controller_split_type == JS_SPLIT_TYPE_FULL ||
-	    (jc->controller_split_type & (int)jc->getSetting<JoyconMask>(SettingID::JOYCON_GYRO_MASK)) == 0))
+	    (jc->controller_split_type & (int)jc->_context->getSetting<JoyconMask>(SettingID::JOYCON_GYRO_MASK)) == 0))
 	{
 		//COUT << "GX: %0.4f GY: %0.4f GZ: %0.4f\n", imuState.gyroX, imuState.gyroY, imuState.gyroZ);
-		float mouseCalibration = jc->getSetting(SettingID::REAL_WORLD_CALIBRATION) / os_mouse_speed / jc->getSetting(SettingID::IN_GAME_SENS);
-		shapedSensitivityMoveMouse(gyroX * gyro_x_sign_to_use, gyroY * gyro_y_sign_to_use, jc->getSetting<FloatXY>(SettingID::MIN_GYRO_SENS), jc->getSetting<FloatXY>(SettingID::MAX_GYRO_SENS),
-		  jc->getSetting(SettingID::MIN_GYRO_THRESHOLD), jc->getSetting(SettingID::MAX_GYRO_THRESHOLD), deltaTime,
-		  camSpeedX * jc->getSetting(SettingID::STICK_AXIS_X), -camSpeedY * jc->getSetting(SettingID::STICK_AXIS_Y), mouseCalibration);
+		float mouseCalibration = jc->_context->getSetting(SettingID::REAL_WORLD_CALIBRATION) / os_mouse_speed / jc->_context->getSetting(SettingID::IN_GAME_SENS);
+		shapedSensitivityMoveMouse(gyroX * gyro_x_sign_to_use, gyroY * gyro_y_sign_to_use, jc->_context->getSetting<FloatXY>(SettingID::MIN_GYRO_SENS), jc->_context->getSetting<FloatXY>(SettingID::MAX_GYRO_SENS),
+		  jc->_context->getSetting(SettingID::MIN_GYRO_THRESHOLD), jc->_context->getSetting(SettingID::MAX_GYRO_THRESHOLD), deltaTime,
+		  camSpeedX * jc->_context->getSetting(SettingID::STICK_AXIS_X), -camSpeedY * jc->_context->getSetting(SettingID::STICK_AXIS_Y), mouseCalibration);
 	}
-	if (jc->btnCommon->_vigemController)
+	if (jc->_context->_vigemController)
 	{
-		jc->btnCommon->_vigemController->update(); // Check for initialized built-in
+		jc->_context->_vigemController->update(); // Check for initialized built-in
 	}
-	auto newColor = jc->getSetting<Color>(SettingID::LIGHT_BAR);
+	auto newColor = jc->_context->getSetting<Color>(SettingID::LIGHT_BAR);
 	if (jc->_light_bar != newColor)
 	{
 		jsl->SetLightColour(jc->handle, newColor.raw);
 		jc->_light_bar = newColor;
 	}
-	jc->btnCommon->callback_lock.unlock();
+	jc->_context->callback_lock.unlock();
 }
 
 // https://stackoverflow.com/a/25311622/1130520 says this is why filenames obtained by fgets don't work
@@ -2973,17 +2012,17 @@ ControllerScheme UpdateVirtualController(ControllerScheme prevScheme, Controller
 	bool success = true;
 	for (auto &js : handle_to_joyshock)
 	{
-		if (!js.second->btnCommon->_vigemController ||
-		  js.second->btnCommon->_vigemController->getType() != nextScheme)
+		if (!js.second->_context->_vigemController ||
+		  js.second->_context->_vigemController->getType() != nextScheme)
 		{
 			if (nextScheme == ControllerScheme::NONE)
 			{
-				js.second->btnCommon->_vigemController.reset(nullptr);
+				js.second->_context->_vigemController.reset(nullptr);
 			}
 			else
 			{
-				js.second->btnCommon->_vigemController.reset(Gamepad::getNew(nextScheme, bind(&JoyShock::handleViGEmNotification, js.second.get(), placeholders::_1, placeholders::_2, placeholders::_3)));
-				success &= js.second->btnCommon->_vigemController && js.second->btnCommon->_vigemController->isInitialized();
+				js.second->_context->_vigemController.reset(Gamepad::getNew(nextScheme, bind(&JoyShock::handleViGEmNotification, js.second.get(), placeholders::_1, placeholders::_2, placeholders::_3)));
+				success &= js.second->_context->_vigemController && js.second->_context->_vigemController->isInitialized();
 			}
 		}
 	}
@@ -3028,7 +2067,7 @@ void OnNewGridDimensions(CmdRegistry *registry, const FloatXY &newGridDims)
 		// For all joyshocks, remove extra touch DigitalButtons
 		for (auto &js : handle_to_joyshock)
 		{
-			lock_guard guard(js.second->btnCommon->callback_lock);
+			lock_guard guard(js.second->_context->callback_lock);
 			js.second->updateGridSize(numberOfButtons);
 		}
 
@@ -3050,7 +2089,7 @@ void OnNewGridDimensions(CmdRegistry *registry, const FloatXY &newGridDims)
 		// For all joyshocks, remove extra touch DigitalButtons
 		for (auto &js : handle_to_joyshock)
 		{
-			lock_guard guard(js.second->btnCommon->callback_lock);
+			lock_guard guard(js.second->_context->callback_lock);
 			js.second->updateGridSize(numberOfButtons);
 		}
 	}

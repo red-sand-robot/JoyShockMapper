@@ -12,6 +12,7 @@ class JSMButton;
 class GamepadMotion;
 class DigitalButton;      // Finite State Machine
 struct DigitalButtonImpl; // Button implementation
+struct JoyShockContext;
 
 // The enum values match the concrete class names
 enum class BtnState
@@ -102,24 +103,7 @@ class DigitalButtonState : public pocket_fsm::StatePimplIF<DigitalButtonImpl>
 class DigitalButton : public pocket_fsm::FiniteStateMachine<DigitalButtonState>
 {
 public:
-	// All digital buttons need a reference to the same instance of the common structure within the same controller.
-	// It enables the buttons to synchronize and be aware of the state of the whole controller, access gyro etc...
-	struct Common
-	{
-		Common(Gamepad::Callback virtualControllerCallback, GamepadMotion *mainMotion);
-		bool HasActiveToggle(const KeyCode &key) const;
-		deque<pair<ButtonID, KeyCode>> gyroActionQueue; // Queue of gyro control actions currently in effect
-		deque<pair<ButtonID, KeyCode>> activeTogglesQueue;
-		deque<ButtonID> chordStack; // Represents the current active buttons in order from most recent to latest
-		unique_ptr<Gamepad> _vigemController;
-		function<DigitalButton *(ButtonID)> _getMatchingSimBtn; // A functor to JoyShock::GetMatchingSimBtn
-		function<void(int small, int big)> _rumble;             // A functor to JoyShock::Rumble
-		mutex callback_lock;                                    // Needs to be in the common struct for both joycons to use the same
-		GamepadMotion *rightMainMotion = nullptr;
-		GamepadMotion *leftMotion = nullptr;
-	};
-
-	DigitalButton(shared_ptr<DigitalButton::Common> btnCommon, JSMButton &mapping);
+	DigitalButton(shared_ptr<JoyShockContext> _context, JSMButton &mapping);
 
 	const ButtonID _id;
 

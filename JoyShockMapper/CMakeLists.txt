@@ -22,6 +22,7 @@ add_executable (
  	src/DigitalButton.cpp
 	src/GamepadMotion.cpp
 	src/Mapping.cpp
+    src/joystick.cpp
     include/InputHelpers.h
     include/PlatformDefinitions.h
     include/TrayIcon.h
@@ -39,6 +40,19 @@ add_executable (
 	include/Mapping.h
 )
 
+if(SDL)
+	target_sources (
+		${BINARY_NAME} PRIVATE
+		src/SDL2Wrapper.cpp
+	)
+	add_definitions(-DSDL2)
+else()
+		target_sources (
+		${BINARY_NAME} PRIVATE
+		src/JslWrapper.cpp
+	)
+endif()
+
 if (WINDOWS)
     target_sources (
         ${BINARY_NAME} PRIVATE
@@ -50,19 +64,6 @@ if (WINDOWS)
         src/win32/HidHideWhitelister.cpp
         "Win32 Dialog.rc"                    include/win32/resource.h
     )
-
-    if(SDL)
-        target_sources (
-            ${BINARY_NAME} PRIVATE
-            src/SDL2Wrapper.cpp
-		)
-		add_definitions(-DSDL2)
-	else()
-	        target_sources (
-            ${BINARY_NAME} PRIVATE
-            src/JslWrapper.cpp
-		)
-    endif()
 
     # ViGEmClient
     CPMAddPackage (
