@@ -55,38 +55,45 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JS_TYPE_XBOXONE 6
 #define JS_TYPE_XBOXONE_ELITE 7
 #define JS_TYPE_XBOX_SERIES 8
+#define JS_TYPE_GAMEPAD_IMU_ADDON 9
 
 #define JS_SPLIT_TYPE_LEFT 1
 #define JS_SPLIT_TYPE_RIGHT 2
 #define JS_SPLIT_TYPE_FULL 3
 
-#define JSMASK_UP 0x000001
-#define JSMASK_DOWN 0x000002
-#define JSMASK_LEFT 0x000004
-#define JSMASK_RIGHT 0x000008
-#define JSMASK_PLUS 0x000010
-#define JSMASK_OPTIONS 0x000010
-#define JSMASK_MINUS 0x000020
-#define JSMASK_SHARE 0x000020
-#define JSMASK_LCLICK 0x000040
-#define JSMASK_RCLICK 0x000080
-#define JSMASK_L 0x000100
-#define JSMASK_R 0x000200
-#define JSMASK_ZL 0x000400
-#define JSMASK_ZR 0x000800
-#define JSMASK_S 0x001000
-#define JSMASK_E 0x002000
-#define JSMASK_W 0x004000
-#define JSMASK_N 0x008000
-#define JSMASK_HOME 0x010000
-#define JSMASK_PS 0x010000
-#define JSMASK_CAPTURE 0x020000
-#define JSMASK_TOUCHPAD_CLICK 0x020000
-#define JSMASK_MIC 0x040000
-#define JSMASK_SL 0x040000
-#define JSMASK_SR 0x080000
-#define JSMASK_SL2 0x100000
-#define JSMASK_SR2 0x200000
+#define JSMASK_UP 0x0000001
+#define JSMASK_DOWN 0x0000002
+#define JSMASK_LEFT 0x0000004
+#define JSMASK_RIGHT 0x0000008
+#define JSMASK_PLUS 0x0000010
+#define JSMASK_OPTIONS 0x0000010
+#define JSMASK_MINUS 0x0000020
+#define JSMASK_SHARE 0x0000020
+#define JSMASK_LCLICK 0x0000040
+#define JSMASK_RCLICK 0x0000080
+#define JSMASK_L 0x0000100
+#define JSMASK_R 0x0000200
+#define JSMASK_ZL 0x0000400
+#define JSMASK_ZR 0x0000800
+#define JSMASK_S 0x0001000
+#define JSMASK_E 0x0002000
+#define JSMASK_W 0x0004000
+#define JSMASK_N 0x0008000
+#define JSMASK_HOME 0x0010000
+#define JSMASK_PS 0x0010000
+#define JSMASK_CAPTURE 0x0020000
+#define JSMASK_TOUCHPAD_CLICK 0x0020000
+#define JSMASK_MIC 0x0040000
+#define JSMASK_SL 0x0040000
+#define JSMASK_SR 0x0080000
+#define JSMASK_SL2 0x0100000
+#define JSMASK_SR2 0x0200000
+#define JSMASK_SL3 0x0400000 // added to support buttons for gamepad add-on
+#define JSMASK_SR3 0x0800000 // added to support buttons for gamepad add-on
+#define JSMASK_SL4 0x1000000 // added to support buttons for gamepad add-on
+#define JSMASK_SR4 0x2000000 // added to support buttons for gamepad add-on
+
+
 
 #define JSOFFSET_UP 0
 #define JSOFFSET_DOWN 1
@@ -115,6 +122,10 @@ inline bool operator!=(const AdaptiveTriggerSetting &lhs, const AdaptiveTriggerS
 #define JSOFFSET_SR 19
 #define JSOFFSET_SL2 20
 #define JSOFFSET_SR2 21
+#define JSOFFSET_SL3 22 // added to support buttons for gamepad add-on
+#define JSOFFSET_SR3 23 // added to support buttons for gamepad add-on
+#define JSOFFSET_SL4 24 // added to support buttons for gamepad add-on
+#define JSOFFSET_SR4 25 // added to support buttons for gamepad add-on
 
 // PS5 Player maps for the DS Player Lightbar
 #define DS5_PLAYER_1 = 4

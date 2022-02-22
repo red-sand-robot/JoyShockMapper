@@ -209,8 +209,10 @@ public:
 		JslSetPlayerNumber(deviceId, number);
 	}
 };
-
+/*
+// not needed for connecting to add-on via JSL and then connecting to xInput controller via SDL
 JslWrapper* JslWrapper::getNew()
 {
 	return new JSlWrapperImpl();
 }
+*/

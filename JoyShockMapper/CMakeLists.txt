@@ -46,6 +46,7 @@ if (WINDOWS)
 		target_sources (
 				${BINARY_NAME} PRIVATE
 				src/SDL2Wrapper.cpp
+				src/JslWrapper.cpp
 		)
 		add_definitions(-DSDL2)
 	else()
@@ -105,6 +106,13 @@ if (WINDOWS)
 				"$<TARGET_FILE:SDL2>"
 				"$<TARGET_FILE_DIR:${PROJECT_NAME}>/$<TARGET_FILE_NAME:SDL2>"
 		)
+       		add_custom_command(
+			TARGET ${BINARY_NAME}
+			POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy
+				"$<TARGET_FILE:JoyShockLibrary>"
+				"$<TARGET_FILE_DIR:${PROJECT_NAME}>/$<TARGET_FILE_NAME:JoyShockLibrary>"
+		)
     else()
 		add_custom_command(
 			TARGET ${BINARY_NAME}
@@ -131,6 +139,7 @@ if (LINUX)
 		target_sources (
 				${BINARY_NAME} PRIVATE
 				src/SDL2Wrapper.cpp
+				
 		)
 		add_definitions(-DSDL2)
 	else()
@@ -185,12 +194,29 @@ if(SDL OR NOT DEFINED SDL)
 		TARGETS ${BINARY_NAME} SDL2
 		RUNTIME DESTINATION ${PACKAGE_DIR}
 	)
+	#JoyShockLibrary
+	CPMAddPackage (
+		NAME JoyShockLibrary
+		GITHUB_REPOSITORY red-sand-robot/JoyShockLibrary
+		GIT_TAG 8d0ea9268e61b4f16351219b8b5c41d6a33c584a
+	)
+
+	target_link_libraries (
+		${BINARY_NAME} PRIVATE
+		Platform::Dependencies
+		JoyShockLibrary
+	)
+
+	install (
+		TARGETS ${BINARY_NAME} JoyShockLibrary
+		RUNTIME DESTINATION ${PACKAGE_DIR}
+	)
 else()
 	# JoyShockLibrary
 	CPMAddPackage (
 		NAME JoyShockLibrary
-		GITHUB_REPOSITORY JibbSmart/JoyShockLibrary
-		GIT_TAG 0
+		GITHUB_REPOSITORY red-sand-robot/JoyShockLibrary
+		GIT_TAG 8d0ea9268e61b4f16351219b8b5c41d6a33c584a
 	)
 
 	target_link_libraries (

@@ -1,6 +1,8 @@
+#define JSL_WRAPPER_SOURCE
 #include "JslWrapper.h"
 #include "JSMVariable.hpp"
 #include "SDL.h"
+#include "JslWrapper.cpp"
 #include <map>
 #include <mutex>
 #include <atomic>
@@ -11,6 +13,8 @@
 #include <iostream>
 #include <cstring>
 #include "TriggerEffectGenerator.h"
+
+unique_ptr<JSlWrapperImpl> jsl(new JSlWrapperImpl);
 
 extern JSMVariable<float> tick_time; // defined in main.cc
 
@@ -288,6 +292,7 @@ public:
 	int ConnectDevices() override
 	{
 		bool isFalse = false;
+		jsl->ConnectDevices();
 		if (keep_polling.compare_exchange_strong(isFalse, true))
 		{
 			// keep polling was false! It is set to true now.
@@ -300,6 +305,8 @@ public:
 
 	int GetConnectedDeviceHandles(int *deviceHandleArray, int size) override
 	{
+		std::vector<int> dummyArray(size, -1);
+		jsl->GetConnectedDeviceHandles(dummyArray.data(), size);
 		std::lock_guard guard(controller_lock);
 		auto iter = _controllerMap.begin();
 		while (iter != _controllerMap.end())
@@ -312,7 +319,7 @@ public:
 			ControllerDevice *device = new ControllerDevice(i);
 			if (device->isValid())
 			{
-				deviceHandleArray[i] = i + 1;
+				deviceHandleArray[i] = i + 0; // used to be 'i + 1', but this is part of the hacky way to get the add-on to work
 				_controllerMap[deviceHandleArray[i]] = device;
 			}
 			else
@@ -325,6 +332,7 @@ public:
 
 	void DisconnectAndDisposeAll() override
 	{
+		jsl->DisconnectAndDisposeAll();
 		lock_guard guard(controller_lock);
 		keep_polling = false;
 		g_callback = nullptr;
@@ -355,6 +363,10 @@ public:
 			imuState.gyroX = gyro[0] * toDegPerSec;
 			imuState.gyroY = gyro[1] * toDegPerSec;
 			imuState.gyroZ = gyro[2] * toDegPerSec;
+		}
+		else if (!_controllerMap[deviceId]->_has_accel)
+		{
+			imuState = jsl->GetIMUState(deviceId);
 		}
 		if (_controllerMap[deviceId]->_has_accel)
 		{
